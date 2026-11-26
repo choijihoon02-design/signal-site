@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>신호 API 진단</title>
+<title>청주 보행자 신호 API 진단</title>
 
 <style>
 :root {
@@ -43,19 +43,19 @@ body {
 }
 
 main {
-  max-width: 850px;
+  max-width: 950px;
   margin: 0 auto;
   padding: 18px;
 }
 
 h1 {
   font-size: 21px;
-  margin: 0 0 5px;
+  margin: 0 0 6px;
 }
 
 h2 {
   font-size: 17px;
-  margin: 22px 0 8px;
+  margin: 24px 0 9px;
 }
 
 .mu {
@@ -82,11 +82,11 @@ button:disabled {
 
 .status {
   margin-top: 12px;
-  padding: 10px;
+  padding: 11px;
   border-radius: 10px;
   background: var(--bg2);
   font-size: 13px;
-  min-height: 40px;
+  min-height: 42px;
 }
 
 .progress {
@@ -111,7 +111,7 @@ button:disabled {
 
 table {
   width: 100%;
-  min-width: 680px;
+  min-width: 850px;
   border-collapse: collapse;
   margin-top: 12px;
   font-size: 13px;
@@ -126,10 +126,10 @@ td, th {
 
 th {
   background: var(--bg2);
-  font-weight: 700;
 }
 
-td:first-child, th:first-child {
+td:first-child,
+th:first-child {
   text-align: left;
 }
 
@@ -157,7 +157,7 @@ pre {
   overflow: auto;
   font-size: 12px;
   line-height: 1.55;
-  max-height: 500px;
+  max-height: 550px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -166,7 +166,7 @@ pre {
   display: inline-block;
   background: var(--bg2);
   border: 1px solid var(--line);
-  padding: 2px 7px;
+  padding: 3px 8px;
   border-radius: 7px;
   font-size: 12px;
   margin: 2px;
@@ -175,11 +175,6 @@ pre {
 .small {
   font-size: 12px;
   color: var(--mu);
-}
-
-.result-title {
-  font-weight: 700;
-  margin-bottom: 5px;
 }
 
 .stats {
@@ -201,13 +196,24 @@ pre {
   margin-top: 4px;
 }
 
+.stat-title {
+  font-size: 12px;
+  color: var(--mu);
+}
+
+.section {
+  margin-top: 12px;
+}
+
+@media (min-width: 650px) {
+  .stats {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
 @media (max-width: 480px) {
   main {
     padding: 13px;
-  }
-
-  .stats {
-    grid-template-columns: 1fr 1fr;
   }
 }
 </style>
@@ -216,18 +222,17 @@ pre {
 <body>
 <main>
 
-<h1>🚦 신호 API 진단</h1>
+<h1>🚦 청주 보행자 신호 API 진단</h1>
 
 <div class="mu">
-전국 지역별 교차로 정보와 실시간 신호 잔여시간 API를 검사합니다.
-각 지역에 2회 요청하며, 총 50회 정도의 API 호출이 발생합니다.
-인증키는 서버 함수에 보관됩니다.
+청주시, 흥덕구, 비하동의 실시간 신호정보를 전체 페이지에 걸쳐 검사합니다.
+보행자 신호 필드(Pdsg)와 다른 신호 필드도 비교합니다.
 </div>
 
 <button id="run">진단 시작</button>
 
 <div class="status" id="st">
-진단을 시작하면 지역별 데이터 수집 결과가 표시됩니다.
+진단을 시작할 준비가 되었습니다.
 </div>
 
 <div class="progress">
@@ -235,62 +240,71 @@ pre {
 </div>
 
 <div class="stats">
+
   <div class="stat">
-    <div class="mu">검사한 지역</div>
-    <strong id="checked">0</strong>
+    <div class="stat-title">검사 지역</div>
+    <strong id="checked">0 / 3</strong>
   </div>
 
   <div class="stat">
-    <div class="mu">신호정보가 존재하는 지역</div>
-    <strong id="signalCount">0</strong>
+    <div class="stat-title">전체 신호 레코드</div>
+    <strong id="totalRecords">0</strong>
   </div>
 
   <div class="stat">
-    <div class="mu">보행자 상태 필드가 존재하는 지역</div>
+    <div class="stat-title">보행 상태 필드</div>
     <strong id="stateCount">0</strong>
   </div>
 
   <div class="stat">
-    <div class="mu">보행 잔여시간 필드가 존재하는 지역</div>
+    <div class="stat-title">보행 잔여시간 필드</div>
     <strong id="timeCount">0</strong>
   </div>
+
 </div>
 
-<h2>지역별 검사 결과</h2>
-
-<div class="mu">
-방향별 상태 필드와 잔여시간 필드는 교차로의 모든 방향을 합산한 개수입니다.
-</div>
+<h2>1. 지역별 진단 결과</h2>
 
 <div class="table-wrap">
 <table id="tb">
+
 <thead>
 <tr>
 <th>지역</th>
 <th>법정동 코드</th>
-<th>교차로</th>
-<th>신호정보</th>
+<th>교차로 수</th>
+<th>신호정보 수</th>
+<th>조회 완료</th>
 <th>보행 상태</th>
 <th>보행 잔여시간</th>
 <th>36001</th>
+<th>기타 신호 필드</th>
 </tr>
 </thead>
+
 <tbody></tbody>
+
 </table>
 </div>
 
-<h2>신호정보 샘플</h2>
+<h2>2. 선택된 샘플</h2>
 
 <div class="box" id="sampleInfo">
-아직 수집된 샘플이 없습니다.
+아직 검사 결과가 없습니다.
 </div>
 
-<div id="smp">
+<h2>3. 보행자 신호 필드 분석</h2>
+
+<div class="box" id="fieldInfo">
+아직 검사 결과가 없습니다.
 </div>
 
-<h2>진단 기준</h2>
+<div id="smp"></div>
+
+<h2>4. 검사 기준</h2>
 
 <div class="box">
+
   <div>
     <span class="tag">nt</span> 북쪽
     <span class="tag">et</span> 동쪽
@@ -305,71 +319,57 @@ pre {
     <span class="tag">nw</span> 북서쪽
   </div>
 
-  <div class="small" style="margin-top:10px">
-    PdsgSttsNm: 보행자 신호 상태<br>
-    PdsgRmndCs: 보행자 신호 잔여시간<br>
-    stop-And-Remain: 정지 상태<br>
-    protected-Movement-Allowed: 진행 허용 상태<br>
-    36001: 원본 데이터에서 해당 값이 발견된 횟수. 정확한 의미는 별도 확인 필요.
+  <div class="small" style="margin-top:12px">
+    PdsgRmndCs : 보행자 신호 잔여시간 필드<br>
+    PdsgSttsNm : 보행자 신호 상태 필드<br>
+    Stsg / Ltsg : 보행자 필드가 아닌 별도 신호 필드<br>
+    36001 : 원본에서 발견된 특수값의 출현 횟수. 의미는 아직 확정하지 않음.
   </div>
+
 </div>
 
 <script>
 "use strict";
 
-// ======================================
-// 1. API 설정
-// ======================================
+// ========================================
+// 1. 기본 설정
+// ========================================
 
 const API_ENDPOINT = "/api/rti";
 
-// 보행자 신호 방향
-const PED_DIRECTIONS = [
+const PAGE_SIZE = 100;
+
+const PAGE_DELAY = 100;
+
+// 한 지역에서 순회할 수 있는 최대 페이지 수
+const MAX_PAGES = 1000;
+
+const DIRECTIONS = [
   "nt", "et", "st", "wt",
   "ne", "se", "sw", "nw"
 ];
 
-// ======================================
-// 2. 검사할 지역
-// ======================================
+const OTHER_SIGNAL_TYPES = [
+  "Bssg",
+  "Bcsg",
+  "Ltsg",
+  "Stsg",
+  "Utsg"
+];
+
+// ========================================
+// 2. 검사 지역
+// ========================================
 
 const AREAS = [
-  ["서울특별시", "1100000000"],
-  ["부산광역시", "2600000000"],
-  ["대구광역시", "2700000000"],
-  ["인천광역시", "2800000000"],
-  ["광주광역시", "2900000000"],
-  ["대전광역시", "3000000000"],
-  ["울산광역시", "3100000000"],
-  ["세종특별자치시", "3600000000"],
-
-  ["경기도", "4100000000"],
-  ["강원특별자치도", "5100000000"],
-  ["강원도(구코드)", "4200000000"],
-
-  ["충청북도", "4300000000"],
-  ["충청남도", "4400000000"],
-
-  ["전북특별자치도", "5200000000"],
-  ["전라북도(구코드)", "4500000000"],
-
-  ["전라남도", "4600000000"],
-  ["경상북도", "4700000000"],
-  ["경상남도", "4800000000"],
-  ["제주특별자치도", "5000000000"],
-
   ["청주시", "4311000000"],
-  ["청주시 상당구", "4311100000"],
-  ["청주시 서원구", "4311200000"],
   ["청주시 흥덕구", "4311300000"],
-  ["청주시 청원구", "4311400000"],
-
   ["비하동", "4311313800"]
 ];
 
-// ======================================
+// ========================================
 // 3. HTML 요소
-// ======================================
+// ========================================
 
 const $ = id => document.getElementById(id);
 
@@ -389,20 +389,24 @@ function escapeHTML(value) {
   );
 }
 
-// ======================================
+// ========================================
 // 4. API 호출
-// ======================================
+// ========================================
 
-async function callAPI(endpoint, code, rows) {
+let apiCallCount = 0;
+
+async function callAPI(endpoint, code, rows, pageNo = 1) {
 
   try {
 
     const params = new URLSearchParams({
       ep: endpoint,
       stdgCd: code,
-      pageNo: "1",
+      pageNo: String(pageNo),
       numOfRows: String(rows)
     });
+
+    apiCallCount++;
 
     const response = await fetch(
       `${API_ENDPOINT}?${params.toString()}`
@@ -424,16 +428,14 @@ async function callAPI(endpoint, code, rows) {
     if (!response.ok) {
       return {
         err: `HTTP 오류 ${response.status}`,
-        j: json,
-        t: rawText
+        j: json
       };
     }
 
     if (json.error) {
       return {
         err: String(json.error),
-        j: json,
-        t: rawText
+        j: json
       };
     }
 
@@ -441,113 +443,451 @@ async function callAPI(endpoint, code, rows) {
       j: json,
       t: rawText,
       code: json.header?.resultCode ?? "?",
-      total: Number(json.body?.totalCount ?? 0)
+      total: Number(json.body?.totalCount ?? 0),
+      returnedRows: Number(json.body?.numOfRows ?? 0)
     };
 
   } catch (error) {
 
     return {
-      err: "호출 실패: 서버 함수 또는 네트워크 확인 필요"
+      err: error.message || "API 호출 실패"
     };
 
   }
 }
 
-// ======================================
-// 5. 응답 데이터 배열 변환
-// ======================================
+// ========================================
+// 5. 응답 레코드 배열 변환
+// ========================================
 
 function getItems(result) {
 
-  if (!result?.j) return [];
+  if (!result?.j) {
+    return [];
+  }
 
   const raw = result.j.body?.items?.item;
 
-  if (!raw) return [];
+  if (!raw) {
+    return [];
+  }
 
   return Array.isArray(raw) ? raw : [raw];
 }
 
-// ======================================
-// 6. 보행자 신호 데이터 분석
-// ======================================
+// ========================================
+// 6. 신호정보 전체 페이지 조회
+// ========================================
 
-function inspectPedestrian(result) {
+async function fetchAllSignalRows(code, pageSize = PAGE_SIZE) {
 
-  const items = getItems(result);
+  const first = await callAPI(
+    "tl_drct_info",
+    code,
+    pageSize,
+    1
+  );
 
-  let states = 0;
-  let remaining = 0;
-  let value36001 = 0;
+  if (first.err || !first.j) {
 
-  let greenAllowed = 0;
-  let redStop = 0;
+    return {
+      first,
+      records: [],
+      total: 0,
+      pagesScanned: 0,
+      error: first.err || "응답 없음"
+    };
 
-  const directions = [];
+  }
 
-  for (const item of items) {
+  const firstItems = getItems(first);
 
-    for (const dir of PED_DIRECTIONS) {
+  const total = Math.max(
+    Number(first.total || 0),
+    firstItems.length
+  );
 
-      const rawState = String(
-        item[`${dir}PdsgSttsNm`] ?? ""
-      ).trim();
+  // 실제 첫 페이지에서 반환된 레코드 수를 기준으로 계산.
+  // API가 요청한 100개 대신 5개만 반환하는 경우도 대응.
+  const reportedPageSize =
+    Number(first.returnedRows || 0);
 
-      const rawTime = String(
-        item[`${dir}PdsgRmndCs`] ?? ""
-      ).trim();
+  const effectivePageSize =
+    firstItems.length > 0
+      ? firstItems.length
+      : (reportedPageSize || pageSize);
 
-      if (rawState !== "") {
+  const pageCount = Math.ceil(
+    total / Math.max(1, effectivePageSize)
+  );
 
-        states++;
+  const records = firstItems.map(item => ({
+    item,
+    pageNo: 1
+  }));
 
-        if (rawState === "stop-And-Remain") {
-          redStop++;
-        }
+  const errors = [];
 
-        if (rawState === "protected-Movement-Allowed") {
-          greenAllowed++;
-        }
-      }
+  let pagesScanned = 1;
 
-      if (rawTime !== "") {
+  if (pageCount > MAX_PAGES) {
 
-        remaining++;
+    return {
+      first,
+      records,
+      total,
+      pagesScanned,
+      error: `페이지 수가 제한(${MAX_PAGES})을 초과했습니다.`
+    };
 
-        if (rawTime === "36001") {
-          value36001++;
-        }
-      }
+  }
 
-      if (rawState !== "" || rawTime !== "") {
+  // 다음 페이지부터 끝까지 조회
+  for (
+    let page = 2;
+    page <= pageCount;
+    page++
+  ) {
 
-        directions.push({
-          direction: dir,
-          state: rawState || null,
-          remaining: rawTime || null
-        });
-      }
+    const result = await callAPI(
+      "tl_drct_info",
+      code,
+      pageSize,
+      page
+    );
+
+    if (result.err || !result.j) {
+
+      errors.push(
+        `${page}페이지 조회 실패: ${result.err}`
+      );
+
+      break;
+
     }
+
+    const items = getItems(result);
+
+    // 결과가 없으면 더 이상 진행하지 않음
+    if (items.length === 0) {
+
+      errors.push(
+        `${page}페이지에서 데이터가 반환되지 않았습니다.`
+      );
+
+      break;
+
+    }
+
+    items.forEach(item => {
+      records.push({
+        item,
+        pageNo: page
+      });
+    });
+
+    pagesScanned++;
+
+    $("st").textContent =
+      `${code} : ${page}/${pageCount}페이지 조회 중`;
+
+    await sleep(PAGE_DELAY);
+
   }
 
   return {
-    records: items.length,
+    first,
+    records,
+    total,
+    pagesScanned,
+    error: errors.length
+      ? errors.join(" / ")
+      : null
+  };
+
+}
+
+// ========================================
+// 7. 보행자 신호 분석
+// ========================================
+
+function inspectPedestrian(records) {
+
+  let states = 0;
+  let remaining = 0;
+
+  let value36001 = 0;
+
+  let redStop = 0;
+  let greenAllowed = 0;
+  let clearance = 0;
+
+  const stateValues = {};
+  const remainingValues = {};
+
+  let otherFields = 0;
+
+  const directionData = [];
+
+  for (const record of records) {
+
+    const item = record.item;
+
+    for (const dir of DIRECTIONS) {
+
+      // 보행자 신호
+      const state = String(
+        item[`${dir}PdsgSttsNm`] ?? ""
+      ).trim();
+
+      const time = String(
+        item[`${dir}PdsgRmndCs`] ?? ""
+      ).trim();
+
+      if (state !== "") {
+
+        states++;
+
+        stateValues[state] =
+          (stateValues[state] || 0) + 1;
+
+        if (state === "stop-And-Remain") {
+          redStop++;
+        }
+
+        if (state === "protected-Movement-Allowed") {
+          greenAllowed++;
+        }
+
+        if (state === "protected-clearance") {
+          clearance++;
+        }
+
+      }
+
+      if (time !== "") {
+
+        remaining++;
+
+        remainingValues[time] =
+          (remainingValues[time] || 0) + 1;
+
+        if (time === "36001") {
+          value36001++;
+        }
+
+      }
+
+      // Pdsg 외 신호 필드
+      for (const type of OTHER_SIGNAL_TYPES) {
+
+        const otherState = String(
+          item[`${dir}${type}SttsNm`] ?? ""
+        ).trim();
+
+        const otherTime = String(
+          item[`${dir}${type}RmndCs`] ?? ""
+        ).trim();
+
+        if (otherState !== "") {
+          otherFields++;
+        }
+
+        if (otherTime !== "") {
+          otherFields++;
+        }
+
+      }
+
+      if (state !== "" || time !== "") {
+
+        directionData.push({
+          recordPage: record.pageNo,
+          crsrdId: item.crsrdId,
+          direction: dir,
+          state,
+          remaining: time
+        });
+
+      }
+
+    }
+
+  }
+
+  return {
+    records: records.length,
     states,
     remaining,
     value36001,
     redStop,
     greenAllowed,
-    directions
+    clearance,
+    otherFields,
+    stateValues,
+    remainingValues,
+    directions: directionData
   };
+
 }
 
-// ======================================
-// 7. 표 표시용 함수
-// ======================================
+// ========================================
+// 8. 지역별 교차로 정보
+// ========================================
 
-function cell(result) {
+async function inspectArea(name, code) {
 
-  if (result.err) {
+  // 교차로 정보는 전체 개수 확인용으로 1회 호출
+  const intersection = await callAPI(
+    "crsrd_map_info",
+    code,
+    1,
+    1
+  );
+
+  // 신호정보는 모든 페이지 조회
+  const signalScan = await fetchAllSignalRows(
+    code,
+    PAGE_SIZE
+  );
+
+  const ped = inspectPedestrian(
+    signalScan.records
+  );
+
+  return {
+    name,
+    code,
+    intersection,
+    signal: signalScan.first,
+    records: signalScan.records,
+    total: signalScan.total,
+    pagesScanned: signalScan.pagesScanned,
+    error: signalScan.error,
+    ped
+  };
+
+}
+
+// ========================================
+// 9. 샘플 우선순위 선택
+// ========================================
+
+function selectSample(results) {
+
+  const available = results.filter(
+    result => result.records.length > 0
+  );
+
+  if (available.length === 0) {
+    return null;
+  }
+
+  // 실제 보행자 필드가 있는 데이터 우선
+  const pedestrianData = available.filter(
+    result =>
+      result.ped.states > 0 ||
+      result.ped.remaining > 0
+  );
+
+  // 1순위: 비하동에서 보행자 신호 발견
+  let sample = pedestrianData.find(
+    result => result.code === "4311313800"
+  );
+
+  if (sample) return sample;
+
+  // 2순위: 다른 청주 지역에서 발견
+  if (pedestrianData.length > 0) {
+    return pedestrianData[0];
+  }
+
+  // 3순위: 보행자 정보가 없어도 비하동 원본 확인
+  sample = available.find(
+    result => result.code === "4311313800"
+  );
+
+  if (sample) return sample;
+
+  // 4순위: 흥덕구
+  sample = available.find(
+    result => result.code === "4311300000"
+  );
+
+  if (sample) return sample;
+
+  // 5순위: 청주시
+  return available[0];
+
+}
+
+// ========================================
+// 10. 샘플 레코드 가공
+// ========================================
+
+function extractSampleRecord(record) {
+
+  const item = record.item;
+
+  const signals = {};
+
+  const TYPES = [
+    "Pdsg",
+    "Stsg",
+    "Ltsg",
+    "Bssg",
+    "Bcsg",
+    "Utsg"
+  ];
+
+  for (const dir of DIRECTIONS) {
+
+    signals[dir] = {};
+
+    for (const type of TYPES) {
+
+      signals[dir][type] = {
+        status: item[`${dir}${type}SttsNm`] ?? "",
+        remaining: item[`${dir}${type}RmndCs`] ?? ""
+      };
+
+    }
+
+  }
+
+  return {
+    pageNo: record.pageNo,
+
+    intersection: {
+      stdgCd: item.stdgCd,
+      lclgvNm: item.lclgvNm,
+      crsrdId: item.crsrdId,
+      regId: item.regId,
+      regDt: item.regDt,
+      totDt: item.totDt
+    },
+
+    signals
+
+  };
+
+}
+
+// ========================================
+// 11. 표 표시
+// ========================================
+
+function fieldCell(count) {
+
+  return count > 0
+    ? `<span class="ok">${count}</span>`
+    : `<span class="no">0</span>`;
+
+}
+
+function resultCell(result) {
+
+  if (result?.err) {
 
     return `<span class="no">${
       escapeHTML(result.err)
@@ -555,69 +895,226 @@ function cell(result) {
 
   }
 
-  const count = Number(result.total || 0);
+  const total = Number(result?.total || 0);
 
-  if (count > 0) {
+  return total > 0
+    ? `<span class="ok">${total.toLocaleString()}건</span>`
+    : `<span class="no">없음</span>`;
 
-    return `<span class="ok">${count.toLocaleString()}건</span>`;
+}
+
+// ========================================
+// 12. 결과 출력
+// ========================================
+
+function renderResult(results) {
+
+  const tbody = $("tb").tBodies[0];
+
+  tbody.innerHTML = "";
+
+  let totalRecords = 0;
+  let stateCount = 0;
+  let timeCount = 0;
+
+  for (const result of results) {
+
+    totalRecords += result.records.length;
+
+    stateCount += result.ped.states;
+
+    timeCount += result.ped.remaining;
+
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${escapeHTML(result.name)}</td>
+
+      <td>${escapeHTML(result.code)}</td>
+
+      <td>${resultCell(result.intersection)}</td>
+
+      <td>${Number(result.total).toLocaleString()}건</td>
+
+      <td>
+        ${result.pagesScanned}페이지
+        <span class="small">
+          (${result.records.length}건)
+        </span>
+      </td>
+
+      <td>${fieldCell(result.ped.states)}</td>
+
+      <td>${fieldCell(result.ped.remaining)}</td>
+
+      <td>${fieldCell(result.ped.value36001)}</td>
+
+      <td>${fieldCell(result.ped.otherFields)}</td>
+    `;
+
+    tbody.appendChild(row);
 
   }
 
-  return `<span class="no">없음</span>`;
+  $("checked").textContent =
+    `${results.length} / ${AREAS.length}`;
+
+  $("totalRecords").textContent =
+    totalRecords.toLocaleString();
+
+  $("stateCount").textContent =
+    stateCount.toLocaleString();
+
+  $("timeCount").textContent =
+    timeCount.toLocaleString();
+
 }
 
-function fieldCell(count) {
+// ========================================
+// 13. 샘플 및 원본 필드 출력
+// ========================================
 
-  return count > 0
-    ? `<span class="ok">${count}개</span>`
-    : `<span class="no">비어 있음</span>`;
+function renderSample(sample) {
+
+  if (!sample) {
+
+    $("sampleInfo").textContent =
+      "조회된 신호정보 레코드가 없습니다.";
+
+    $("fieldInfo").textContent =
+      "분석할 데이터가 없습니다.";
+
+    $("smp").innerHTML = "";
+
+    return;
+
+  }
+
+  const ped = sample.ped;
+
+  $("sampleInfo").innerHTML = `
+    <div>
+      <strong>선택된 지역: ${
+        escapeHTML(sample.name)
+      }</strong>
+    </div>
+
+    <div class="small">
+      법정동 코드: ${escapeHTML(sample.code)}
+    </div>
+
+    <div class="small">
+      전체 레코드: ${sample.total}건
+    </div>
+
+    <div class="small">
+      실제 조회 레코드: ${sample.records.length}건
+    </div>
+
+    <div class="small">
+      페이지 조회: ${sample.pagesScanned}페이지
+    </div>
+
+    <div class="small">
+      보행자 상태 필드: ${ped.states}개
+    </div>
+
+    <div class="small">
+      보행자 잔여시간 필드: ${ped.remaining}개
+    </div>
+
+    <div class="small">
+      36001 출현 횟수: ${ped.value36001}개
+    </div>
+
+    ${
+      sample.error
+        ? `<div class="no">조회 오류: ${escapeHTML(sample.error)}</div>`
+        : ""
+    }
+  `;
+
+  $("fieldInfo").innerHTML = `
+    <strong>보행자 상태 코드 분포</strong>
+
+    <pre>${
+      escapeHTML(
+        JSON.stringify(ped.stateValues, null, 2)
+      )
+    }</pre>
+
+    <strong>보행자 잔여시간 원본값 분포</strong>
+
+    <pre>${
+      escapeHTML(
+        JSON.stringify(ped.remainingValues, null, 2)
+      )
+    }</pre>
+
+    <strong>기타 집계</strong>
+
+    <pre>${
+      escapeHTML(
+        JSON.stringify({
+          stopAndRemain: ped.redStop,
+          protectedMovementAllowed: ped.greenAllowed,
+          protectedClearance: ped.clearance,
+          otherSignalFields: ped.otherFields
+        }, null, 2)
+      )
+    }</pre>
+  `;
+
+  // Pdsg 값이 있는 레코드를 먼저 선택
+  const matching = sample.records.filter(record => {
+
+    const item = record.item;
+
+    return DIRECTIONS.some(dir => {
+
+      const state = String(
+        item[`${dir}PdsgSttsNm`] ?? ""
+      ).trim();
+
+      const time = String(
+        item[`${dir}PdsgRmndCs`] ?? ""
+      ).trim();
+
+      return state !== "" || time !== "";
+
+    });
+
+  });
+
+  // 데이터가 없으면 처음 3개 레코드를 대신 표시
+  const selectedRecords =
+    matching.length > 0
+      ? matching.slice(0, 5)
+      : sample.records.slice(0, 3);
+
+  const extracted = selectedRecords.map(
+    extractSampleRecord
+  );
+
+  $("smp").innerHTML = `
+    <h2>원본 신호 필드 샘플</h2>
+
+    <div class="mu">
+      보행자 필드가 발견되면 해당 교차로를 우선 표시합니다.
+      발견되지 않으면 처음 3개 레코드를 표시합니다.
+    </div>
+
+    <pre id="sampleJson"></pre>
+  `;
+
+  $("sampleJson").textContent =
+    JSON.stringify(extracted, null, 2);
 
 }
 
-// ======================================
-// 8. 샘플 선택
-// ======================================
-
-function selectSample(samples) {
-
-  if (!samples.length) return null;
-
-  // 1순위: 비하동
-  let found = samples.find(
-    item => item.code === "4311313800"
-  );
-
-  if (found) return found;
-
-  // 2순위: 청주시 흥덕구
-  found = samples.find(
-    item => item.code === "4311300000"
-  );
-
-  if (found) return found;
-
-  // 3순위: 청주시
-  found = samples.find(
-    item => item.code.startsWith("4311")
-  );
-
-  if (found) return found;
-
-  // 4순위: 보행자 상태 또는 잔여시간이 있는 데이터
-  found = samples.find(
-    item => item.ped.states > 0 ||
-            item.ped.remaining > 0
-  );
-
-  if (found) return found;
-
-  // 5순위: 처음으로 발견된 신호정보
-  return samples[0];
-}
-
-// ======================================
-// 9. 메인 진단
-// ======================================
+// ========================================
+// 14. 메인 진단 실행
+// ========================================
 
 $("run").addEventListener("click", async () => {
 
@@ -625,30 +1122,28 @@ $("run").addEventListener("click", async () => {
 
   button.disabled = true;
 
+  apiCallCount = 0;
+
   $("tb").tBodies[0].innerHTML = "";
-  $("smp").innerHTML = "";
 
   $("sampleInfo").textContent =
-    "데이터 수집 중입니다.";
+    "검사 중입니다.";
 
-  $("st").textContent = "진단을 준비하고 있습니다.";
+  $("fieldInfo").textContent =
+    "검사 중입니다.";
+
+  $("smp").innerHTML = "";
 
   $("bar").style.width = "0%";
 
-  $("checked").textContent = "0";
-  $("signalCount").textContent = "0";
+  $("checked").textContent =
+    `0 / ${AREAS.length}`;
+
+  $("totalRecords").textContent = "0";
   $("stateCount").textContent = "0";
   $("timeCount").textContent = "0";
 
-  let samples = [];
-
-  let checked = 0;
-  let signalCount = 0;
-  let stateCount = 0;
-  let timeCount = 0;
-  let failedCount = 0;
-
-  const tbody = $("tb").tBodies[0];
+  const results = [];
 
   try {
 
@@ -657,159 +1152,68 @@ $("run").addEventListener("click", async () => {
       const [name, code] = AREAS[i];
 
       $("st").textContent =
-        `확인 중... ${i + 1}/${AREAS.length} : ${name}`;
+        `${name} 검사 중... (${i + 1}/${AREAS.length})`;
 
-      // 교차로 위치 정보
-      const intersection = await callAPI(
-        "crsrd_map_info",
-        code,
-        1
-      );
+      const result = await inspectArea(name, code);
 
-      // 실시간 신호 정보
-      const signal = await callAPI(
-        "tl_drct_info",
-        code,
-        5
-      );
+      results.push(result);
 
-      const ped = inspectPedestrian(signal);
+      renderResult(results);
 
-      checked++;
-
-      if (signal.err) failedCount++;
-
-      if (Number(signal.total) > 0) {
-        signalCount++;
-
-        samples.push({
-          name,
-          code,
-          t: signal.t,
-          signal,
-          ped
-        });
-      }
-
-      if (ped.states > 0) {
-        stateCount++;
-      }
-
-      if (ped.remaining > 0) {
-        timeCount++;
-      }
-
-      const row = document.createElement("tr");
-
-      row.innerHTML = `
-        <td>${escapeHTML(name)}</td>
-        <td>${escapeHTML(code)}</td>
-        <td>${cell(intersection)}</td>
-        <td>${cell(signal)}</td>
-        <td>${fieldCell(ped.states)}</td>
-        <td>${fieldCell(ped.remaining)}</td>
-        <td>${ped.value36001}</td>
-      `;
-
-      tbody.appendChild(row);
-
-      $("checked").textContent = checked;
-      $("signalCount").textContent = signalCount;
-      $("stateCount").textContent = stateCount;
-      $("timeCount").textContent = timeCount;
-
-      const percent =
-        ((i + 1) / AREAS.length) * 100;
-
-      $("bar").style.width = `${percent}%`;
-
-      await sleep(150);
-    }
-
-    // ==================================
-    // 10. 샘플 출력
-    // ==================================
-
-    const sample = selectSample(samples);
-
-    if (sample) {
-
-      $("sampleInfo").innerHTML = `
-        <div class="result-title">
-          선택된 지역: ${escapeHTML(sample.name)}
-        </div>
-        <div class="small">
-          법정동 코드: ${escapeHTML(sample.code)}
-        </div>
-        <div class="small">
-          교차로 레코드: ${sample.ped.records}개
-        </div>
-        <div class="small">
-          보행 상태 필드: ${sample.ped.states}개
-        </div>
-        <div class="small">
-          보행 잔여시간 필드: ${sample.ped.remaining}개
-        </div>
-        <div class="small">
-          36001 출현: ${sample.ped.value36001}개
-        </div>
-      `;
-
-      $("smp").innerHTML = `
-        <h2>원본 API JSON</h2>
-        <div class="mu">
-          서버가 받은 신호정보 응답입니다.
-          인증키는 포함되지 않습니다.
-        </div>
-        <pre id="rawJson"></pre>
-
-        <h2>추출된 보행자 신호 데이터</h2>
-        <pre id="pedJson"></pre>
-      `;
-
-      $("rawJson").textContent =
-        sample.t.length > 30000
-          ? sample.t.slice(0, 30000) +
-            "\n\n... 데이터가 길어 일부 생략되었습니다."
-          : sample.t;
-
-      $("pedJson").textContent =
-        JSON.stringify(sample.ped, null, 2);
-
-    } else {
-
-      $("sampleInfo").textContent =
-        "신호정보를 반환한 지역이 없습니다.";
-
-      $("smp").innerHTML = `
-        <div class="box">
-          교차로 또는 신호정보 API가 데이터를 반환하지 않았습니다.
-          서버 함수, 인증키, 지역 코드 및 API 제공 범위를 확인하세요.
-        </div>
-      `;
+      $("bar").style.width =
+        `${((i + 1) / AREAS.length) * 100}%`;
 
     }
 
     // ==================================
-    // 11. 종료 메시지
+    // 15. 최종 결과
     // ==================================
 
-    if (failedCount > 0) {
+    const sample = selectSample(results);
+
+    renderSample(sample);
+
+    const totalErrors = results.filter(
+      result =>
+        result.error ||
+        result.signal?.err ||
+        result.intersection?.err
+    ).length;
+
+    const totalPedStates = results.reduce(
+      (sum, result) => sum + result.ped.states,
+      0
+    );
+
+    const totalPedTimes = results.reduce(
+      (sum, result) => sum + result.ped.remaining,
+      0
+    );
+
+    if (totalErrors > 0) {
 
       $("st").textContent =
-        `진단 완료. API 호출 오류 ${failedCount}건을 확인했습니다.`;
+        `진단 완료. 일부 API 조회 오류 ${totalErrors}건. 총 API 요청 ${apiCallCount}회`;
+
+    } else if (
+      totalPedStates === 0 &&
+      totalPedTimes === 0
+    ) {
+
+      $("st").textContent =
+        `진단 완료. 조회한 모든 레코드에서 Pdsg 필드가 비어 있습니다. 총 ${apiCallCount}회 호출`;
 
     } else {
 
       $("st").textContent =
-        `진단 완료! ${checked}개 지역 검사가 끝났습니다.`;
+        `진단 완료! 보행자 신호 필드를 발견했습니다. 총 ${apiCallCount}회 호출`;
 
     }
 
   } catch (error) {
 
     $("st").textContent =
-      `진단 중 오류 발생: ${error.message}`;
+      `진단 중 오류: ${error.message}`;
 
   } finally {
 
@@ -819,14 +1223,15 @@ $("run").addEventListener("click", async () => {
 
 });
 
-// ======================================
-// 12. 초기 상태
-// ======================================
+// ========================================
+// 16. 초기 화면
+// ========================================
 
 $("st").textContent =
-  `총 ${AREAS.length}개 지역을 검사할 준비가 되었습니다.`;
+  "청주시 3개 지역의 전체 신호정보 페이지를 검사할 준비가 되었습니다.";
 
 </script>
+
 </main>
 </body>
 </html>
