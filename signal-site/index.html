@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>신호등 내비</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--bg:#fff;--bg2:#f3f4f6;--tx:#14171a;--mu:#6b7280;--bd:#e3e6ea;--g:#16a34a;--r:#dc2626;--ac:#2563eb;--sh:0 4px 14px #0002}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1e24;--bg2:#272b34;--tx:#eceef1;--mu:#9aa1ad;--bd:#2c313a;--g:#22c55e;--r:#f87171;--ac:#60a5fa;--sh:0 4px 14px #0008}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;overflow:hidden}
+body{display:flex;flex-direction:column;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Noto Sans KR",sans-serif}
+.row{display:flex;gap:8px}
+input{flex:1;min-width:0;padding:12px;border:1px solid var(--bd);border-radius:12px;background:var(--bg2);color:var(--tx);font-size:16px}
+button{padding:10px 14px;border:0;border-radius:12px;background:var(--bg2);color:var(--tx);font-size:14px;font-weight:600}
+button:active{opacity:.7}
+button.p{background:var(--ac);color:#fff}
+.mu{color:var(--mu);font-size:13px}
+#mapwrap{position:relative;flex:1;min-height:0}
+#map{position:absolute;inset:0}
+#overlay{position:absolute;top:0;left:0;right:0;z-index:1100;padding:calc(10px + env(safe-area-inset-top,0px)) 10px 0;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+#overlay>*{pointer-events:auto}
+#top{background:var(--bg);border-radius:16px;box-shadow:var(--sh);padding:6px}
+#top input{border:0}
+#res{max-height:40vh;overflow:auto}
+#res div{padding:12px 6px;border-top:1px solid var(--bd)}
+#nav{display:none;padding:12px 14px;background:var(--ac);color:#fff;font-weight:700;font-size:17px;border-radius:14px;box-shadow:var(--sh)}
+#near{display:none;align-self:flex-start;max-width:85%;background:var(--bg);color:var(--tx);border-radius:16px;padding:6px 14px 6px 6px;box-shadow:var(--sh);cursor:pointer}
+.nb{display:flex;gap:10px;align-items:center}
+.nd{width:38px;height:38px;border-radius:50%;color:#fff;font-weight:700;display:grid;place-items:center;flex:none}
+#fabs{position:absolute;right:10px;bottom:30px;z-index:1100;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.fab{background:var(--bg);width:58px;padding:8px 0;border-radius:18px;box-shadow:var(--sh);display:flex;flex-direction:column;align-items:center;gap:1px}
+.fab b{font-size:20px;line-height:1.1}.fab small{font-size:10px;font-weight:700}
+.fab.p,.fab.on{background:var(--ac);color:#fff}
+#toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#111d;color:#fff;padding:10px 16px;border-radius:20px;z-index:4000;display:none;max-width:86%;text-align:center;font-size:14px}
+.nd.lg{width:48px;height:48px;font-size:21px}
+#near .sy{display:flex;gap:6px;margin-top:6px}
+#near .sy button{font-size:12px;padding:6px 8px;border-radius:10px;flex:1}
+#near.stale .mu{color:#d97706}
+.nd.soon{animation:pulse 1s infinite}
+@keyframes pulse{50%{transform:scale(1.14)}}
+.rt .big{font-size:26px;font-weight:800}
+.rt .dn{font-size:14px;color:var(--mu);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#rec.p{background:var(--r)}
+#moreWrap{position:relative}
+#more{display:none;position:absolute;right:calc(100% + 8px);bottom:0;flex-direction:column;gap:6px;background:var(--bg);border-radius:16px;padding:8px;box-shadow:var(--sh);white-space:nowrap}
+#sheet{background:var(--bg);border-radius:20px 20px 0 0;box-shadow:0 -4px 16px #0002;padding:0 14px calc(12px + env(safe-area-inset-bottom,0px));max-height:42vh;overflow:auto}
+#hd{padding:8px 0;cursor:pointer}
+#handle{width:44px;height:5px;border-radius:3px;background:var(--bd);margin:0 auto}
+#info{font-size:16px;font-weight:600;line-height:1.5}
+#sheet.min #sigs,#sheet.min .note{display:none}
+.sg{display:flex;justify-content:space-between;gap:10px;align-items:center;background:var(--bg2);border-radius:14px;padding:10px 12px;margin-top:8px}
+.mk{width:34px;height:34px;border-radius:50%;color:#fff;font-weight:700;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 1px 4px #0006}
+#form{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:560px;z-index:2500;background:var(--bg);border-radius:20px 20px 0 0;box-shadow:0 -8px 28px #0005;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));max-height:88vh;overflow:auto}
+#form #ftitle{font-size:17px;display:block;margin-bottom:8px}
+#form label{display:block;font-size:12px;color:var(--mu);margin:10px 0 4px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+#tia{position:fixed;inset:0;z-index:3100;background:#0009;display:none;align-items:flex-end;justify-content:center}
+#tia .pn{background:var(--bg);color:var(--tx);width:100%;max-width:560px;max-height:88vh;overflow:auto;border-radius:20px 20px 0 0;padding:16px}
+.tc{background:var(--bg2);border-radius:14px;padding:12px;margin-top:8px}
+.tc .ph{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tc .ph button{font-size:13px;padding:8px 10px;background:var(--bg)}
+</style></head><body>
+<div id="mapwrap">
+  <div id="map"></div>
+  <div id="overlay">
+    <div id="top">
+      <div class="row"><input id="q" placeholder="🔍 목적지 검색 (예: 청주역)"><button class="p" id="go">검색</button></div>
+      <div id="res"></div>
+    </div>
+    <div id="nav"></div>
+    <div id="near"><div class="nb"><span class="nd lg" id="nd"></span><div><b id="nn"></b><div class="mu" id="nt"></div></div></div><div class="sy" id="sy"><button data-sy="g">방금 초록 켜짐</button><button data-sy="r">방금 초록 끝남</button></div></div>
+  </div>
+  <div id="fabs">
+    <button class="fab" id="me" aria-label="내 위치"><b>📍</b><small>내 위치</small></button>
+    <button class="fab on" id="fol" aria-label="따라가기"><b>🧭</b><small>따라가기</small></button>
+    <button class="fab" id="rec" aria-label="길 생성"><b>🔴</b><small>길 생성</small></button>
+    <button class="fab" id="add" aria-label="신호등 추가"><b>＋</b><small>신호등</small></button>
+    <div id="moreWrap">
+      <button class="fab" id="moreBtn" aria-label="더보기"><b>⋯</b><small>더보기</small></button>
+      <div id="more">
+        <button id="pick">📍 지도에서 목적지</button><button id="clr">경로 취소</button><button id="exp">신호등 내보내기</button><button id="imp">신호등 불러오기</button>
+        <input type="file" id="file" accept="application/json,.json" style="display:none">
+      </div>
+    </div>
+  </div>
+</div>
+<div id="sheet">
+  <div id="hd"><div id="handle"></div></div>
+  <div id="info">위치 확인 중… 목적지를 검색하면 경로를 안내해요.</div>
+  <div id="sigs"></div>
+  <div class="mu note" style="margin-top:10px">참고용 표시예요. 실제 신호를 확인하고, 운전 중에는 조작하지 마세요.</div>
+</div>
+<div id="form">
+  <b id="ftitle">신호등 추가</b><input id="name" placeholder="신호등 이름" style="width:100%">
+  <div class="row"><div style="flex:1"><label>초록 길이(초)</label><input id="gs" type="number" inputmode="numeric" style="width:100%"></div><div style="flex:1"><label>빨강 길이(초)</label><input id="rs" type="number" inputmode="numeric" style="width:100%"></div></div>
+  <label>초록불이 켜진 시각</label>
+  <div class="row"><input id="at" type="time" step="1"><button id="now">지금 초록</button></div>
+  <div class="btns"><button id="m1">① 초록 켜짐</button><button id="m2">② 초록 끝남</button><button id="m3">↺ 측정 초기화</button><button id="tiaopen">📚 교통영향평가 데이터에서 찾기</button></div>
+  <div class="mu" id="mt" style="margin-top:10px">지도에서 신호등 위치를 눌러 지정했어요.</div>
+  <div class="btns"><button class="p" id="save">저장</button><button id="tmpsave">임시 신호등으로 저장</button><button id="cancel">취소</button><button id="repos" style="display:none">위치 다시 지정</button><button id="del" style="display:none;color:var(--r)">삭제</button></div>
+</div>
+<div id="toast"></div>
+<div id="perm" style="display:none;position:fixed;inset:0;background:#0008;z-index:3000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:14px;padding:16px;max-width:420px;width:100%;max-height:90vh;overflow:auto">
+    <b>위치 권한이 필요해요</b>
+    <div id="permtxt" class="mu" style="margin:8px 0;line-height:1.6"></div>
+    <div class="btns"><button class="p" id="permretry">다시 시도</button><button id="permtab">새 탭에서 열기</button><button id="permclose">닫기</button></div>
+  </div>
+</div>
+<div id="tia"><div class="pn">
+  <b>교통영향평가 신호 시간 (청주)</b>
+  <div class="mu" style="margin:6px 0">교차로 이름이나 동 이름으로 검색하세요. 과거 조사 값이라 실제와 다를 수 있고, 내가 서 있는 방향이 몇 번 현시인지는 직접 확인해야 해요. 빨강은 주기에서 초록을 뺀 값(황색 포함)이에요.</div>
+  <div class="row"><input id="tq" placeholder="예) 터미널사거리, 비하동"><button id="tclose">닫기</button></div>
+  <div id="tres"></div>
+</div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const KEY="signals-v1";let sigs=[],pos=null,route=null,addMode=false,pend=null,t1=null,markers={},lines={},dest=null,centered=false,follow=true,rec=null,recLine=null,lastRe=0,offN=0,overUntil=0;
+try{sigs=JSON.parse(localStorage.getItem(KEY)||"[]")}catch(e){}
+const store=()=>{try{localStorage.setItem(KEY,JSON.stringify(sigs))}catch(e){}};
+const DK="dest-v1";let recents=[];try{recents=JSON.parse(localStorage.getItem(DK)||"[]")}catch(e){}
+function rememberDest(lat,lng,name){recents=recents.filter(r=>r.name!==name);recents.unshift({lat,lng,name});recents=recents.slice(0,5);try{localStorage.setItem(DK,JSON.stringify(recents))}catch(e){}}
+const RK="routes-v1";let myRoutes=[];try{myRoutes=JSON.parse(localStorage.getItem(RK)||"[]")}catch(e){}
+function saveRoutes(){try{localStorage.setItem(RK,JSON.stringify(myRoutes))}catch(e){toast("저장 공간이 부족해서 경로를 저장하지 못했어요.")}}
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+const destIcon=L.divIcon({className:"",iconSize:[0,0],html:'<div style="font-size:30px;line-height:30px;transform:translate(-50%,-100%);text-shadow:0 2px 4px #0006">📍</div>'});
+const map=L.map("map",{zoomControl:false}).setView([36.64,127.49],14);
+if(location.protocol.startsWith("http"))L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(map);
+else L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Tiles © Esri"}).addTo(map);
+let meM=null,line=null,destM=null;
+function hav(a,b,c,d){const q=Math.PI/180,x=(c-a)*q,y=(d-b)*q,h=Math.sin(x/2)**2+Math.cos(a*q)*Math.cos(c*q)*Math.sin(y/2)**2;return 12742000*Math.asin(Math.sqrt(h))}
+const fd=m=>m>=1000?(m/1000).toFixed(1)+"km":Math.round(m)+"m";
+const pad=n=>String(n).padStart(2,"0");
+const toT=ms=>{const d=new Date(ms);return pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds())};
+const fromT=v=>{if(!v)return null;const p=v.split(":").map(Number),d=new Date();d.setHours(p[0],p[1],p[2]||0,0);return d.getTime()};
+function isTmp(s){return !(s.g>0&&s.r>0&&s.anchor!=null)}
+function st(s,t){if(isTmp(s))return{g:null,left:NaN,tmp:true};const c=s.g+s.r;let p=((t-s.anchor)/1000)%c;if(p<0)p+=c;return p<s.g?{g:true,left:s.g-p}:{g:false,left:c-p}}
+
+/* 위치 */
+function setPos(p){
+  pos={lat:p.coords.latitude,lng:p.coords.longitude,speed:p.coords.speed,acc:p.coords.accuracy};
+  if(!meM)meM=L.circleMarker([pos.lat,pos.lng],{radius:8,color:"#fff",weight:3,fillColor:"#2563eb",fillOpacity:1}).addTo(map);else meM.setLatLng([pos.lat,pos.lng]);
+  if(!centered){map.setView([pos.lat,pos.lng],16);centered=true}
+  else if(follow&&Date.now()>overUntil)map.setView([pos.lat,pos.lng],Math.max(map.getZoom(),16),{animate:true});
+  if(rec)recPoint();
+  else if(!route)$("info").textContent="현재 위치 확인됨. 목적지를 검색하세요.";
+  progress();checkOff();
+}
+let locCb=null;const inFrame=window.top!==window.self;
+function permHelp(){
+  const ua=navigator.userAgent,ios=/iPhone|iPad|iPod/.test(ua),and=/Android/.test(ua);
+  const how=ios?"① 설정 → 개인정보 보호 및 보안 → 위치 서비스에서 사용 중인 브라우저(Safari 등)를 ‘앱을 사용하는 동안’으로 바꿔 주세요.<br>② Safari 주소창의 ‘aA’ → 웹사이트 설정 → 위치를 ‘허용’으로 바꿔 주세요."
+    :and?"① 주소창 왼쪽 자물쇠(또는 설정 아이콘) → 권한 → 위치를 ‘허용’으로 바꿔 주세요.<br>② 휴대폰 설정에서 브라우저 앱의 위치 권한이 켜져 있는지도 확인해 주세요."
+    :"주소창 왼쪽 자물쇠 아이콘 → 사이트 설정 → 위치를 ‘허용’으로 바꿔 주세요.";
+  return (inFrame?"지금은 미리보기 창 안에서 열려 있어서 위치 권한이 막혀 있을 수 있어요. 아래 ‘새 탭에서 열기’로 직접 열어 주세요.<br><br>":"")
+    +"이 사이트의 위치 권한이 차단되어 있어요. 브라우저는 한 번 차단하면 페이지에서 팝업을 다시 띄울 수 없어서 직접 허용으로 바꿔야 해요.<br>"+how+"<br>바꾼 뒤 ‘다시 시도’를 누르세요.";
+}
+function showPerm(msg){$("permtxt").innerHTML=msg;$("perm").style.display="flex"}
+function geoErr(e){
+  if((e&&e.code===1)||inFrame)showPerm(permHelp());
+  else toast("위치를 가져오지 못했어요. 실외에서 잠시 후 다시 시도해 주세요.");
+}
+$("permretry").onclick=()=>{$("perm").style.display="none";locate(locCb)};
+$("permtab").onclick=()=>{if(!window.open(location.href,"_blank","noopener"))location.href=location.href};
+$("permclose").onclick=()=>{$("perm").style.display="none"};
+if(navigator.permissions&&navigator.permissions.query)navigator.permissions.query({name:"geolocation"}).then(r=>{
+  r.onchange=()=>{if(r.state==="granted"&&$("perm").style.display==="flex"){$("perm").style.display="none";locate(locCb)}};
+}).catch(()=>{});
+function locate(cb){
+  if(!navigator.geolocation||!window.isSecureContext){toast("위치 기능은 HTTPS 주소에서만 동작해요.");return}
+  locCb=cb;$("info").textContent="내 위치 찾는 중…";
+  navigator.geolocation.getCurrentPosition(p=>{setPos(p);cb&&cb()},geoErr,{enableHighAccuracy:true,timeout:15000,maximumAge:0});
+}
+if(navigator.geolocation)navigator.geolocation.watchPosition(setPos,e=>{if(e&&e.code===1&&!route)$("info").textContent="위치 권한이 차단되어 있어요. ‘내 위치’ 버튼을 눌러 해결 방법을 확인하세요."},{enableHighAccuracy:true,maximumAge:2000});
+$("me").onclick=()=>locate(()=>{follow=true;updFol();map.setView([pos.lat,pos.lng],17)});
+function updFol(){$("fol").classList.toggle("on",follow);$("fol").querySelector("small").textContent=follow?"따라가기":"수동"}
+function setRecBtn(on){$("rec").classList.toggle("p",on);$("rec").innerHTML=on?"<b>⏹</b><small>종료</small>":"<b>🔴</b><small>길 생성</small>"}
+function toast(m){const t=$("toast");t.textContent=m;t.style.display="block";clearTimeout(toast.t);toast.t=setTimeout(()=>{t.style.display="none"},3500)}
+$("fol").onclick=()=>{follow=!follow;updFol();if(follow&&pos)map.setView([pos.lat,pos.lng],Math.max(map.getZoom(),16))};
+map.on("dragstart",()=>{follow=false;updFol()});
+
+/* 검색 */
+async function search(){
+  const q=$("q").value.trim();if(!q)return;
+  $("res").innerHTML='<div class="mu">검색 중…</div>';
+  try{
+    const r=await fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=kr&accept-language=ko&limit=6&q="+encodeURIComponent(q));
+    const a=await r.json();
+    $("res").innerHTML=a.length?'<div class="mu">목적지를 눌러 선택하세요</div>'+a.map((x,i)=>`<div data-i="${i}">${esc(x.display_name)}</div>`).join(""):'<div class="mu">결과가 없어요. 더 구체적으로 검색해 보세요.</div>';
+    $("res").onclick=e=>{const i=e.target.dataset.i;if(i!=null){const x=a[+i];$("res").innerHTML="";setDest(+x.lat,+x.lon,x.display_name)}};
+  }catch(e){$("res").innerHTML='<div class="mu">검색에 실패했어요. 잠시 후 다시 시도하세요.</div>'}
+}
+$("go").onclick=search;$("q").addEventListener("keydown",e=>{if(e.key==="Enter")search()});
+function showRecents(){
+  if($("q").value.trim()||(!recents.length&&!myRoutes.length))return;
+  $("res").innerHTML=(recents.length?'<div class="mu">최근 목적지</div>'+recents.map((x,i)=>`<div data-i="${i}">${esc(x.name)}</div>`).join(""):"")
+    +(myRoutes.length?'<div class="mu">내가 만든 경로</div>'+myRoutes.map((x,i)=>`<div data-r="${i}">${esc(x.name)} <span data-x="${i}" style="float:right;color:var(--r)">삭제</span></div>`).join(""):"");
+  $("res").onclick=e=>{const t=e.target.dataset;
+    if(t.x!=null){if(confirm("이 경로를 삭제할까요?")){myRoutes.splice(+t.x,1);saveRoutes();$("res").innerHTML=""}return}
+    if(t.i!=null){const x=recents[+t.i];$("res").innerHTML="";setDest(x.lat,x.lng,x.name)}
+    else if(t.r!=null){const x=myRoutes[+t.r];$("res").innerHTML="";applyCustom(x.pts,x.dur,x.name)}};
+}
+$("q").addEventListener("focus",showRecents);
+
+/* 경로 */
+const MV={left:"좌회전",right:"우회전","slight left":"약간 좌회전","slight right":"약간 우회전","sharp left":"급좌회전","sharp right":"급우회전",straight:"직진",uturn:"유턴"};
+function stepTxt(s){const m=s.maneuver;if(m.type==="arrive")return"목적지 도착";if(m.type==="depart")return"출발";
+  if(/roundabout|rotary/.test(m.type))return"회전교차로 진입";return(MV[m.modifier]||"직진")+(s.name?" ("+s.name+")":"")}
+async function setDest(lat,lng,name,re){
+  if(rec){toast("길 생성 중에는 목적지를 설정할 수 없어요. 먼저 길 생성을 종료하세요.");return}
+  if(!pos){locate(()=>setDest(lat,lng,name));return}
+  $("info").textContent=re?"경로를 벗어나 재탐색 중…":"경로 계산 중…";dest={lat,lng,name};
+  try{
+    const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${pos.lng},${pos.lat};${lng},${lat}?overview=full&geometries=geojson&steps=true`);
+    const d=await r.json();if(!d.routes||!d.routes.length)throw 0;
+    const rt=d.routes[0],c=rt.geometry.coordinates.map(p=>[p[1],p[0]]),cum=[0];
+    for(let i=1;i<c.length;i++)cum.push(cum[i-1]+hav(c[i-1][0],c[i-1][1],c[i][0],c[i][1]));
+    let acc=0;const steps=rt.legs[0].steps.map(s=>({t:stepTxt(s),end:(acc+=s.distance)}));
+    route={c,cum,total:cum[cum.length-1],steps,dur:rt.duration,sg:[]};
+    sigs.forEach(s=>attach(s));
+    if(line)map.removeLayer(line);if(destM)map.removeLayer(destM);
+    line=L.polyline(c,{color:"#2563eb",weight:6,opacity:.85}).addTo(map);
+    destM=L.marker([lat,lng],{icon:destIcon}).addTo(map);offN=0;
+    if(!re){map.fitBounds(line.getBounds(),{padding:[30,30]});overUntil=Date.now()+4000;follow=true;updFol();rememberDest(lat,lng,name)}
+    progress();
+  }catch(e){$("info").textContent="경로를 찾지 못했어요. 잠시 후 다시 시도해 주세요.";if(!re)route=null}
+}
+function near(p){let b=0,bd=1e12;for(let i=0;i<route.c.length;i++){const d=hav(p.lat,p.lng,route.c[i][0],route.c[i][1]);if(d<bd){bd=d;b=i}}return{i:b,d:bd}}
+function attach(s){
+  if(!route||s.lat==null)return;
+  route.sg=route.sg.filter(x=>x.s.id!==s.id);
+  const n=near(s);
+  if(s.lat2!=null){
+    const e=near({lat:s.lat2,lng:s.lng2});
+    if(n.d<40&&e.d<60&&route.cum[e.i]>route.cum[n.i])route.sg.push({s,cum:route.cum[n.i]});
+  }else if(n.d<40)route.sg.push({s,cum:route.cum[n.i]});
+}
+function myCum(){return pos&&route?route.cum[near(pos).i]:0}
+function progress(){
+  if(!route)return;const m=myCum(),rem=route.total-m;
+  const mins=Math.max(1,Math.round(route.dur*rem/route.total/60)),eta=new Date(Date.now()+mins*60000);
+  $("info").innerHTML=`<div class="rt"><div><span class="big">${mins}분</span><span class="mu"> · ${fd(rem)} · ${pad(eta.getHours())}:${pad(eta.getMinutes())} 도착</span></div><div class="dn">${esc((dest.name||"").split(",")[0])}</div></div>`;
+  const i=route.steps.findIndex(x=>x.end>m+1),s=route.steps[i],nx=route.steps[i+1];
+  $("nav").style.display=s?"block":"none";if(s)$("nav").textContent=`${fd(Math.max(0,s.end-m))} 후 ${nx?nx.t:"목적지 도착"}`;
+}
+function segDist(p,a,b){const k=Math.cos(p.lat*Math.PI/180),x=(p.lng-a[1])*k,y=p.lat-a[0],dx=(b[1]-a[1])*k,dy=b[0]-a[0],l=dx*dx+dy*dy;let t=l?(x*dx+y*dy)/l:0;t=Math.max(0,Math.min(1,t));const ex=x-t*dx,ey=y-t*dy;return Math.sqrt(ex*ex+ey*ey)*111320}
+function routeDist(p){let m=1e12;for(let i=1;i<route.c.length;i++){const d=segDist(p,route.c[i-1],route.c[i]);if(d<m)m=d}return m}
+function checkOff(){
+  if(!route||!pos||rec||(pos.acc&&pos.acc>60))return;
+  if(routeDist(pos)>50){
+    offN++;
+    if(route.custom){if(offN>=2)$("info").textContent="⚠ 기록한 경로에서 50m 이상 벗어났어요.";return}
+    if(offN>=2&&dest&&Date.now()-lastRe>10000){lastRe=Date.now();setDest(dest.lat,dest.lng,dest.name,true)}
+  }else offN=0;
+}
+function clearRoute(){
+  if(rec)cancelRec();
+  route=null;dest=null;offN=0;if(line)map.removeLayer(line);if(destM)map.removeLayer(destM);line=destM=null;
+  $("nav").style.display="none";$("info").textContent="목적지를 검색하면 경로를 안내해요.";tick();
+}
+$("clr").onclick=clearRoute;
+
+/* 길 생성(이동 경로 기록) */
+function recPoint(){
+  if(pos.acc&&pos.acc>50)return;
+  const l=rec.pts[rec.pts.length-1],d=hav(l[0],l[1],pos.lat,pos.lng);
+  if(d>=5){rec.pts.push([pos.lat,pos.lng]);rec.len+=d;recLine.setLatLngs(rec.pts);tmpOk=saveTmp()}
+  $("info").innerHTML=`🔴 경로 기록 중<br>${fd(rec.len)} · 점 ${rec.pts.length}개 · ${tmpOk?"임시저장 중":"⚠ 임시저장 실패"}`;
+}
+function startRec(){
+  if(!pos){locate(()=>startRec());return}
+  clearRoute();
+  if(!canStore())toast("이 브라우저는 저장이 막혀 있어요(시크릿 모드 등). 기록 중 앱이 꺼지면 기록이 사라질 수 있어요.");
+  rec={pts:[[pos.lat,pos.lng]],len:0,t0:Date.now()};tmpOk=saveTmp();wake();
+  recLine=L.polyline(rec.pts,{color:"#f97316",weight:6}).addTo(map);
+  follow=true;updFol();setRecBtn(true);
+  $("info").innerHTML="🔴 경로 기록 중<br>이동하면 경로가 기록돼요.";
+}
+function cancelRec(){rec=null;try{localStorage.removeItem(TK)}catch(e){}unwake();if(recLine){map.removeLayer(recLine);recLine=null}setRecBtn(false)}
+function endRec(){
+  if(rec.pts.length<2){toast("기록된 이동이 너무 짧아요. 조금 더 이동한 뒤 종료해 주세요.");return}
+  const pts=rec.pts.map(q=>[Math.round(q[0]*1e6)/1e6,Math.round(q[1]*1e6)/1e6]),dur=(Date.now()-rec.t0)/1000;
+  const d=new Date(),def="내 경로 "+(d.getMonth()+1)+"/"+d.getDate()+" "+pad(d.getHours())+":"+pad(d.getMinutes());
+  const nm=(prompt("경로 이름을 입력하세요",def)||def).trim()||def;
+  myRoutes=myRoutes.filter(r=>r.name!==nm);myRoutes.unshift({name:nm,pts,dur});myRoutes=myRoutes.slice(0,10);saveRoutes();
+  cancelRec();
+  applyCustom(pts,dur,nm);
+}
+function applyCustom(c,dur,name){
+  clearRoute();
+  const cum=[0];for(let i=1;i<c.length;i++)cum.push(cum[i-1]+hav(c[i-1][0],c[i-1][1],c[i][0],c[i][1]));
+  route={c,cum,total:cum[cum.length-1],steps:[],dur,sg:[],custom:true};
+  dest={lat:c[c.length-1][0],lng:c[c.length-1][1],name};
+  sigs.forEach(s=>attach(s));
+  line=L.polyline(c,{color:"#f97316",weight:6,opacity:.9}).addTo(map);
+  destM=L.marker(c[c.length-1],{icon:destIcon}).addTo(map);
+  map.fitBounds(line.getBounds(),{padding:[30,30]});overUntil=Date.now()+4000;offN=0;progress();tick();
+}
+$("rec").onclick=()=>rec?endRec():startRec();
+
+/* 기록 임시저장 · 복구 · 화면 켜짐 유지 */
+const TK="rec-v1";let tmpOk=true,wl=null;
+function saveTmp(){try{localStorage.setItem(TK,JSON.stringify({pts:rec.pts,len:rec.len,t0:rec.t0}));return true}catch(e){return false}}
+function canStore(){try{localStorage.setItem("_t","1");const ok=localStorage.getItem("_t")==="1";localStorage.removeItem("_t");return ok}catch(e){return false}}
+async function wake(){try{if("wakeLock" in navigator&&rec&&!wl){wl=await navigator.wakeLock.request("screen");wl.addEventListener("release",()=>{wl=null})}}catch(e){}}
+function unwake(){try{wl&&wl.release()}catch(e){}wl=null}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&rec)wake()});
+function resumeRec(t){
+  clearRoute();rec={pts:t.pts,len:t.len||0,t0:t.t0||Date.now()};
+  recLine=L.polyline(rec.pts,{color:"#f97316",weight:6}).addTo(map);
+  follow=true;updFol();setRecBtn(true);
+  map.fitBounds(recLine.getBounds(),{padding:[30,30]});overUntil=Date.now()+3000;wake();
+  $("info").innerHTML="🔴 기록을 이어가는 중<br>꺼져 있던 동안의 구간은 직선으로 이어져요.";
+}
+function recoverRec(){
+  if(rec)return;let t=null;
+  try{t=JSON.parse(localStorage.getItem(TK)||"null")}catch(e){}
+  if(!t||!Array.isArray(t.pts)||!t.pts.length)return;
+  if(confirm("기록 중이던 경로가 있어요 ("+fd(t.len||0)+", 점 "+t.pts.length+"개).\n확인: 이어서 기록 / 취소: 다른 선택"))resumeRec(t);
+  else if(t.pts.length>=2&&confirm("여기까지 기록을 경로로 저장할까요?\n확인: 저장 / 취소: 버리기")){rec={pts:t.pts,len:t.len||0,t0:t.t0||Date.now()};endRec()}
+  else{try{localStorage.removeItem(TK)}catch(e){}}
+}
+setTimeout(recoverRec,600);
+
+/* 신호등 */
+function icon(s,t){const x=st(s,t);return L.divIcon({className:"",iconSize:[34,34],iconAnchor:[17,17],html:`<div class="mk" style="background:${x.tmp?"#9ca3af":x.g?"var(--g)":"var(--r)"};${x.tmp?"font-size:11px":""}${!x.tmp&&isStale(s)?";opacity:.5":""}">${x.tmp?"NaN":Math.ceil(x.left)}</div>`})}
+function syncMarkers(){
+  Object.keys(markers).forEach(id=>{if(!sigs.find(s=>s.id===id)){map.removeLayer(markers[id]);delete markers[id];if(lines[id]){map.removeLayer(lines[id]);delete lines[id]}}});
+  sigs.forEach(s=>{
+    if(s.lat==null||markers[s.id])return;
+    if(s.lat2!=null)lines[s.id]=L.polyline([[s.lat,s.lng],[s.lat2,s.lng2]],{weight:5,opacity:.85}).addTo(map);
+    markers[s.id]=L.marker([s.lat,s.lng],{icon:icon(s,Date.now())}).addTo(map).on("click",()=>openEdit(s));
+  })
+}
+function tick(){
+  const t=Date.now();syncMarkers();
+  sigs.forEach(s=>{if(markers[s.id])markers[s.id].setIcon(icon(s,t));if(lines[s.id])lines[s.id].setStyle({color:isTmp(s)?"#9ca3af":(st(s,t).g?"#16a34a":"#dc2626"),opacity:(isTmp(s)||isStale(s))?.4:.85})});
+  nearBox(t);const el=$("sigs");
+  if(route){
+    const m=myCum(),v=pos&&pos.speed>2?pos.speed:8.33;
+    const a=route.sg.filter(x=>x.cum>m-10).sort((p,q)=>p.cum-q.cum);
+    el.innerHTML=a.length?a.map(x=>{const n=st(x.s,t),eta=Math.max(0,x.cum-m)/v,f=st(x.s,t+eta*1000);
+      return`<div class="sg" data-e="${esc(x.s.id)}"><div><b>${esc(x.s.name)}</b><div class="mu">${fd(Math.max(0,x.cum-m))} 앞 · ${n.tmp?"시간 미설정":"도착 예상 "+(f.g?"초록":"빨강")}</div></div><div style="color:${n.tmp?"#9ca3af":n.g?"var(--g)":"var(--r)"};font-weight:700;text-align:right">${n.tmp?"임시<br>NaN":(n.g?"초록":"빨강")+"<br>"+Math.ceil(n.left)+"초 후 "+(n.g?"빨강":"초록")}</div></div>`}).join(""):'<div class="mu" style="padding:6px 0">경로상에 등록된 신호등이 없어요.</div>';
+  }else el.innerHTML="";
+}
+setInterval(tick,1000);syncMarkers();tick();
+
+/* 신호등 추가 */
+function closeForm(){
+  $("form").style.display="none";addMode=false;addStep=0;pend=null;t1=null;ev=[];editId=null;
+  $("ftitle").textContent="신호등 추가";$("del").style.display="none";$("repos").style.display="none";$("tmpsave").style.display="";
+  if(tmpL){map.removeLayer(tmpL);tmpL=null}
+}
+function openEdit(s){
+  if(addMode||pickDest||rec)return;
+  closeForm();
+  editId=s.id;pend={lat:s.lat,lng:s.lng,lat2:s.lat2,lng2:s.lng2};
+  const tp=isTmp(s);$("name").value=s.name;$("gs").value=tp?"":s.g;$("rs").value=tp?"":s.r;origAt=tp?null:toT(s.anchor);$("at").value=tp?"":origAt;$("tmpsave").style.display=tp?"":"none";
+  $("ftitle").textContent="신호등 수정";$("del").style.display="";$("repos").style.display="";
+  $("mt").textContent="값을 고치고 저장하세요. ‘지금 초록 시작’으로 시간을 다시 맞출 수 있어요.";
+  $("form").style.display="block";$("form").scrollIntoView({block:"nearest"});
+}
+$("sigs").onclick=e=>{const r=e.target.closest("[data-e]");if(r){const s=sigs.find(x=>x.id===r.dataset.e);if(s)openEdit(s)}};
+L.DomEvent.disableClickPropagation($("near"));
+$("near").onclick=e=>{const b=e.target.closest("[data-sy]");if(b){resync(b.dataset.sy);return}const s=sigs.find(x=>x.id===$("near").dataset.id);if(s)openEdit(s)};
+function ageTxt(s){const a=Date.now()-(s.sync||s.anchor||0);if(!(a>0))return"";const m=a/60000;return m<60?Math.max(1,Math.round(m))+"분 전 맞춤":m<1440?Math.round(m/60)+"시간 전 맞춤":Math.round(m/1440)+"일 전 맞춤"}
+function isStale(s){return !isTmp(s)&&Date.now()-(s.sync||s.anchor||0)>3*86400000}
+function nearBox(t){
+  const b=$("near");
+  if(!pos||!sigs.length){b.style.display="none";return}
+  let best=null,bd=1e12;
+  sigs.forEach(s=>{if(s.lat==null)return;const d=hav(pos.lat,pos.lng,s.lat,s.lng);if(d<bd){bd=d;best=s}});
+  if(!best||bd>2000){b.style.display="none";return}
+  const x=st(best,t),n=Math.ceil(x.left),nd=$("nd");
+  b.style.display="block";b.dataset.id=best.id;$("nn").textContent=best.name;
+  $("sy").style.display=x.tmp?"none":"flex";
+  if(x.tmp){nd.className="nd lg";nd.style.background="#9ca3af";nd.style.fontSize="11px";nd.textContent="NaN";$("nt").textContent="임시 신호등 · 시간 미설정 · "+fd(bd);b.classList.remove("stale");return}
+  const warn=x.g&&n<=4,soon=warn||(!x.g&&n<=5),old=isStale(best);
+  nd.className="nd lg"+(soon?" soon":"");nd.style.fontSize="";nd.style.background=warn?"#f59e0b":x.g?"var(--g)":"var(--r)";nd.textContent=n;
+  $("nt").textContent=`${warn?"곧 빨강":x.g?"초록":"빨강"} · ${n}초 후 ${x.g?"빨강":"초록"} · ${fd(bd)} · ${ageTxt(best)}${old?" ⚠ 다시 맞춰 보세요":""}`;
+  b.classList.toggle("stale",old);
+}
+function resync(kind){
+  const s=sigs.find(x=>x.id===$("near").dataset.id);if(!s||isTmp(s))return;
+  const now=Date.now();
+  s.anchor=kind==="g"?now:now-s.g*1000;s.sync=now;store();tick();
+  toast(kind==="g"?"방금 초록 켜진 시점으로 다시 맞췄어요":"방금 초록이 끝난 시점으로 다시 맞췄어요");
+}
+$("repos").onclick=()=>{
+  if(tmpL){map.removeLayer(tmpL);tmpL=null}
+  $("form").style.display="none";addMode=true;addStep=1;
+  $("info").textContent="새 시작점(신호 앞, 진입하는 쪽)을 눌러 주세요.";
+};
+$("del").onclick=()=>{
+  const s=sigs.find(x=>x.id===editId);
+  if(s&&confirm(s.name+" 신호등을 삭제할까요?")){sigs=sigs.filter(x=>x.id!==s.id);store();if(route)route.sg=route.sg.filter(x=>x.s.id!==s.id);closeForm();syncMarkers();tick()}
+};
+let pickDest=false,addStep=0,tmpL=null,editId=null,origAt="";
+$("pick").onclick=()=>{pickDest=true;addMode=false;addStep=0;if(tmpL){map.removeLayer(tmpL);tmpL=null};$("info").textContent="지도에서 목적지를 눌러 주세요."};
+$("add").onclick=()=>{pickDest=false;addMode=true;addStep=1;if(tmpL){map.removeLayer(tmpL);tmpL=null}$("info").textContent="신호등 시작점(신호 앞, 진입하는 쪽)을 눌러 주세요.";$("mt").textContent="시작점과 도착점을 차례로 눌러 이어 주세요."};
+map.on("click",e=>{if(pickDest){pickDest=false;setDest(e.latlng.lat,e.latlng.lng,"지도에서 선택한 위치");return}if(!addMode)return;
+  if(addStep===1){pend={lat:e.latlng.lat,lng:e.latlng.lng};addStep=2;tmpL=L.polyline([[pend.lat,pend.lng],[pend.lat,pend.lng]],{color:"#f97316",weight:5,dashArray:"6 8"}).addTo(map);$("info").textContent="도착점(신호를 지난 뒤 위치)을 눌러 주세요.";return}
+  pend.lat2=e.latlng.lat;pend.lng2=e.latlng.lng;tmpL.setLatLngs([[pend.lat,pend.lng],[pend.lat2,pend.lng2]]);addMode=false;addStep=0;
+  $("form").style.display="block";$("mt").textContent="시작점과 도착점이 이어졌어요. 시간을 입력하거나 ①②③으로 측정하세요.";$("form").scrollIntoView({block:"nearest"})});
+$("now").onclick=()=>{$("at").value=toT(Date.now())};
+let ev=[];
+function measAdd(type){
+  const t=Date.now(),l=ev[ev.length-1];
+  if(l&&l.type===type)ev[ev.length-1]={t,type};else ev.push({t,type});
+  const gd=[],rd=[];
+  for(let i=1;i<ev.length;i++){
+    const d=(ev[i].t-ev[i-1].t)/1000;
+    if(ev[i-1].type==="G"&&ev[i].type==="R")gd.push(d);
+    else if(ev[i-1].type==="R"&&ev[i].type==="G")rd.push(d);
+  }
+  const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
+  const lastG=[...ev].reverse().find(e=>e.type==="G");
+  if(lastG)$("at").value=toT(lastG.t);
+  if(gd.length)$("gs").value=Math.round(avg(gd));
+  if(rd.length)$("rs").value=Math.round(avg(rd));
+  $("mt").textContent=`측정: 초록 ${gd.length}회 · 빨강 ${rd.length}회`+(gd.length&&rd.length?` · 평균 초록 ${Math.round(avg(gd))}초 / 빨강 ${Math.round(avg(rd))}초`:" · 계속 눌러 주세요")+" (주기를 여러 번 잴수록 정확해요)";
+}
+$("m1").onclick=()=>measAdd("G");
+$("m2").onclick=()=>measAdd("R");
+$("m3").onclick=()=>{ev=[];$("mt").textContent="측정을 초기화했어요."};
+function saveSig(tmp){
+  const g=+$("gs").value,r=+$("rs").value,atv=$("at").value;
+  const keep=!tmp&&!!editId&&origAt!==null&&atv===origAt,a=(tmp||keep)?null:fromT(atv);
+  if(!pend||(!editId&&pend.lat2==null)||(!tmp&&!(g>0&&r>0&&(keep||a)))){
+    $("mt").textContent=tmp?"위치를 먼저 지정해 주세요.":"위치, 초록/빨강 길이, 기준 시각을 모두 입력해 주세요. 시간을 모르면 ‘임시 신호등으로 저장’을 누르세요.";return}
+  const name=$("name").value.trim()||(tmp?"임시 신호등":"신호등"),tg=tmp?null:g,tr=tmp?null:r;
+  if(editId){
+    const s=sigs.find(x=>x.id===editId);if(!s){closeForm();return}
+    Object.assign(s,{name,g:tg,r:tr,lat:pend.lat,lng:pend.lng,lat2:pend.lat2==null?null:pend.lat2,lng2:pend.lng2==null?null:pend.lng2});
+    if(tmp)s.anchor=null;else{if(!keep)s.anchor=a;s.sync=Date.now()}
+    if(markers[s.id]){map.removeLayer(markers[s.id]);delete markers[s.id]}
+    if(lines[s.id]){map.removeLayer(lines[s.id]);delete lines[s.id]}
+    store();if(route)attach(s);
+  }else{
+    const s={id:Date.now().toString(36),name,g:tg,r:tr,anchor:tmp?null:a,sync:tmp?null:Date.now(),lat:pend.lat,lng:pend.lng,lat2:pend.lat2,lng2:pend.lng2};
+    sigs.push(s);store();attach(s);
+  }
+  ["name","gs","rs","at"].forEach(i=>$(i).value="");closeForm();progress();tick();
+}
+$("save").onclick=()=>saveSig(false);
+$("tmpsave").onclick=()=>saveSig(true);
+$("cancel").onclick=closeForm;
+
+/* 백업 */
+$("exp").onclick=()=>{
+  if(!sigs.length){toast("내보낼 신호등이 없어요.");return}
+  const b=new Blob([JSON.stringify(sigs,null,1)],{type:"application/json"}),a=document.createElement("a");
+  a.href=URL.createObjectURL(b);a.download="signals-backup.json";document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+};
+$("imp").onclick=()=>$("file").click();
+$("file").onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{
+    const a=JSON.parse(await f.text());if(!Array.isArray(a))throw 0;let n=0;
+    a.forEach(s=>{if(s&&s.id&&!sigs.find(x=>x.id===String(s.id))){
+      sigs.push({id:String(s.id),name:String(s.name||"신호등"),g:s.g>0?+s.g:null,r:s.r>0?+s.r:null,anchor:s.anchor?+s.anchor:null,sync:s.sync?+s.sync:null,lat:s.lat==null?null:+s.lat,lng:s.lng==null?null:+s.lng,lat2:s.lat2==null?null:+s.lat2,lng2:s.lng2==null?null:+s.lng2});n++}});
+    store();sigs.forEach(s=>attach(s));tick();toast(n+"개를 불러왔어요.");
+  }catch(err){toast("파일을 읽지 못했어요.")}
+  e.target.value="";
+};
+
+/* 교통영향평가 기하구조정보(청주) - 국토교통부, 조사 시점 값 */
+const TIA=[["(부영아파트105동)","청주시 상당구 용담동","2013",9,[[110,3],[24,3]]],["(산남주공1차아파트131동)","청주시 흥덕구 분평동","2016",9,[[32,3],[32,3],[32,3],[32,3]]],["(산남주공1차아파트131동)","청주시 흥덕구 분평동","2016",19,[[94,3],[20,3],[27,3]]],["(산남주공2단지아파트201동)","청주시 흥덕구 분평동","2016",9,[[14,3],[91,3],[26,3]]],["(산남주공2단지아파트201동)","청주시 흥덕구 분평동","2016",20,[[14,3],[91,3],[26,3]]],["(산남주공3차아파트301동)","청주시 흥덕구 분평동","2016",9,[[94,3],[20,3],[27,3]]],["(세원청실아파트103동)","청주시 흥덕구 분평동","2016",9,[[33,3],[27,3],[33,3],[35,3]]],["(세원청실아파트103동)","청주시 흥덕구 분평동","2016",19,[[33,3],[27,3],[33,3],[35,3]]],["(인동로제1순환로)","청주시 흥덕구 분평동","2016",9,[[17,3],[32,3],[17,3],[35,3],[34,3]]],["(인동로제1순환로)","청주시 흥덕구 분평동","2016",19,[[17,3],[32,3],[17,3],[35,3],[34,3]]],["(제1순환로세한로)","청주시 흥덕구 분평동","2016",9,[[28,3],[28,3],[14,3],[30,3],[35,3]]],["(제1순환로세한로)","청주시 흥덕구 분평동","2016",19,[[28,3],[28,3],[14,3],[30,3],[35,3]]],["(주)대원 앞 교차로","청주시 흥덕구 복대동","2017",19,[[29,3],[51,3],[16,3],[23,3],[26,3]]],["(주)삼영전기 앞 교차로","청주시 흥덕구 복대동","2017",19,[[19,3],[52,3],[17,3],[28,3],[29,3]]],["01 방서사거리","청주시 상당구 방서동","2015",9,[[36,3],[29,3],[24,5],[20,3],[22,5]]],["02 농협물류센터입구","청주시 상당구 방서동","2015",9,[[95,4],[13,3],[32,3]]],["03 동남지구 입구","청주시 상당구 방서동","2015",9,[[92,3],[37,3],[12,3]]],["04 지북교차로","청주시 상당구 방서동","2015",9,[[23,5],[30,3],[16,5],[34,5],[22,5]]],["CJB컨벤션삼거리","청주시 서원구 개신동 일원","2020",19,[[48,3],[67,3],[26,3]]],["LG화학","청주시 흥덕구 오송읍 오송생명로 123","2022",9,[[36,4],[31,4],[31,4],[36,4]]],["LS산전 청주공장 앞 교차로","청주시 흥덕구 복대동","2017",19,[[21,3],[27,3],[47,3],[43,3]]],["SK하이닉스 사거리","청주시 흥덕구 화계동","2018",19,[[82,3],[17,3],[17,3],[32,3]]],["e편한세상아파트 사거리","청주시 상당구 용담동","2013",9,[[27,3],[14,3],[19,3],[37,3],[28,3]]],["e편한세상아파트 앞 사거리","청주시 상당구 명암동","2019",19,[[27,3],[46,3],[29,3],[46,3]]],["가경 e 편한세상아파트 앞 삼거리","청주시 흥덕구 가경동","2017",9,[[60,3],[14,3],[37,3]]],["가경 e 편한세상아파트 앞 삼거리","청주시 흥덕구 가경동","2016",9,[[61,3],[13,3],[37,3]]],["가경푸르지오삼거리","청주시 흥덕구 2순환로1340번길 55 (가경동)","2020",19,[[29,3],[85,3],[37,3]]],["가로수마을 입구 교차로","청주 가경동 661 2번지 일원","2020",9,[[52,3],[22,3],[31,3],[17,3],[21,3]]],["가로수마을 입구 교차로","청주시 흥덕구 가경동","2019",9,[[87,3],[27,3]]],["가로수마을 휴먼시아 아파트입구","청주시 흥덕구 가경동","2016",9,[[87,3],[27,3]]],["가마교차로","청주시 상당구 지북동","2017",19,[[32,3],[29,3],[20,3],[41,3],[43,3]]],["가마교차로","청주시 서원구 장성동 134번지 일원","2023",9,[[50,3],[37,3],[20,3],[29,3],[29,3]]],["가마교차로","청주시 서원구 장성동 135번지 일원","2023",9,[[50,3],[37,3],[20,3],[29,3],[29,3]]],["가좌교차로","청주시 청원구 오창읍 후기리 일원","2015",19,[[78,3],[17,3],[26,3],[17,3]]],["가좌사거리","청주시 오찹읍 후기리 일원","2022",17,[[56,3],[17,3],[25,3],[15,3]]],["가좌사거리","청주시 청원구 오창읍","2023",9,[[78,3],[17,3],[26,3],[17,3]]],["각리교회 앞 사거리","청주시 청원구 오창읍 과학산업3로 168","2022",19,[[37,3],[37,3],[27,3],[27,3]]],["강서삼거리","청주시 흥덕구 2순환로 1229 (가경동)","2019",19,[[16,3],[31,3],[19,3]]],["강서지구사거리","청주시 흥덕구 2순환로 1262 (가경동)","2019",19,[[48,3],[29,3],[34,3],[37,3]]],["개신그린주유소 앞 교차로","청주시 서원구 서부로1447번길 16 3 (개신동)","2020",9,[[34,3],[17,3],[36,3],[34,3]]],["개신그린주유소 앞 교차로","청주시 서원구 서부로1465번길 37 (개신동)","2021",9,[[61,3],[17,3],[36,3],[34,3]]],["개신오거리","청주시 서원구 개신동 일원","2020",19,[[31,3],[90,3],[30,3]]],["개신오거리","청주시 서원구 서부로1447번길 16 3 (개신동)","2020",9,[[30,3],[34,3],[30,3],[30,3],[41,3]]],["개신오거리","청주시 서원구 서부로1465번길 37 (개신동)","2021",9,[[30,3],[34,3],[30,3],[30,3],[41,3]]],["경덕중삼거리","청주시 흥덕구 2순환로1340번길 55 (가경동)","2020",19,[[93,3],[37,3],[20,3]]],["경찰청입구삼거리","청주시 상당구 율량동","2015",19,[[92,3],[32,3],[47,3]]],["고은사거리","청주시 상당구 지북동","2017",19,[[44,3],[25,3],[25,3],[34,3]]],["공항사거리","청주시 상당구 주중동","2016",8,[[24,4],[25,4],[20,4],[35,4]]],["공항사거리","청주시 청원구","2022",18,[[26,3],[26,3],[28,3],[28,3]]],["구룡소류지교차로","청주시 청원구 오창읍 후기리 일원","2015",19,[[57,3],[27,3],[27,3],[27,3]]],["구룡소류지사거리","청주시 오찹읍 후기리 일원","2022",17,[[52,3],[22,3],[27,3],[27,3]]],["구법원사거리","청주시 상당구 상당구 문화동44 26 26 4번지 일원","2021",9,[[43,4],[27,4],[26,4],[28,4]]],["구법원사거리","청주시 상당구 탑동","2015",9,[[44,3],[27,3],[27,3],[30,3]]],["구성교차로","청주시 상당구 주중동","2016",8,[[51,4],[20,4],[19,4],[19,4],[21,4]]],["국민은행 앞 사거리","청주시 청원구 오창읍 중심상업2로 9 27 인근","2022",19,[[38,3],[15,3],[37,3],[38,3]]],["국보로사거리","청주시 서원구 충렬로 49 (사직동)","2024",9,[[58,4],[24,4],[31,4],[31,4]]],["국보로사거리","청주시 흥덕구 사직동","2016",19,[[62,4],[21,4],[23,4],[28,4]]],["국보로사거리","청주시 흥덕구 사직동","2022",9,[[59,4],[21,4],[27,4],[27,4]]],["국보로사거리 (평일)","청주시 서원구 사직동 235 11번지 일원","2023",9,[[50,3],[22,3],[28,3],[28,3]]],["국보로사거리 (휴일)","청주시 서원구 사직동 235 11번지 일원","2023",18,[[50,3],[22,3],[28,3],[28,3]]],["국사1리 앞 교차로","청주시 흥덕구 옥산면 소로길 17","2020",18,[[75,3],[13,3],[33,3]]],["국사1리 앞 교차로","청주시 흥덕구 옥산면 소로길 17","2020",19,[[75,3],[13,3],[33,3]]],["국사2리 앞 교차로","청주시 흥덕구 옥산면 소로길 17","2020",18,[[79,3],[16,3],[39,3]]],["국사2리 앞 교차로","청주시 흥덕구 옥산면 소로길 17","2020",19,[[79,3],[16,3],[39,3]]],["국사삼거리","청주시 흥덕구 옥산면 소로길 17","2020",18,[[76,3],[30,3],[25,3]]],["국사삼거리","청주시 흥덕구 옥산면 소로길 17","2020",19,[[76,3],[30,3],[25,3]]],["귀금속백화점 앞 사거리","청주시 흥덕구 비하로12번길 60 (비하동)","2023",18,[[26,4],[38,4],[30,4],[33,4],[33,4]]],["금천새마을금고사거리","청주시상당구 금천동 쇠내로","2015",9,[[32,3],[37,3],[37,3],[22,3]]],["금호타운APT 앞 사거리","청주시 서원구 충렬로 49 (사직동)","2024",9,[[127,4],[25,4]]],["금호타이어 앞","청주시 흥덕구 사직동","2016",9,[[102,3],[17,3],[25,0]]],["금호타이어 앞 교차로 (평일)","청주시 서원구 사직동 235 11번지 일원","2023",9,[[107,3],[17,3],[27,3]]],["금호타이어 앞 교차로 (휴일)","청주시 서원구 사직동 235 11번지 일원","2023",18,[[107,3],[17,3],[27,3]]],["기상대사거리","청주시 흥덕구 복대동","2017",19,[[30,3],[39,3],[26,3],[33,3]]],["기상대사거리","청주시흥덕구 복대1동 복대로220번길","2015",19,[[30,3],[38,3],[27,3],[33,3]]],["기업은행 앞 사거리","청주시 청원구 오창읍 중심상업2로 9 27 인근","2022",19,[[38,3],[16,3],[37,3],[37,3]]],["남청주농협 앞 교차로","청주시 서원구 장성동 134번지 일원","2023",9,[[82,3],[17,3],[32,3]]],["남청주농협 앞 교차로","청주시 서원구 장성동 134번지 일원","2023",9,[[82,3],[17,3],[32,3],[32,3]]],["남청주농협 앞 교차로","청주시 서원구 장성동 135번지 일원","2023",9,[[82,3],[17,3],[32,3]]],["내덕2동 행정복지센터 앞","청주시 청원구 충청대로 4 (내덕동)","2024",9,[[125,3],[32,3]]],["내덕삼거리","청주시 상당구 내덕동","2017",19,[[89,3],[25,3],[17,3]]],["내덕칠거리","청주시 상당구 내덕동","2017",19,[[44,3],[17,3],[26,3],[41,3]]],["내덕칠거리","청주시 청원구 충청대로 4 (내덕동)","2024",9,[[14,4],[22,4],[16,4],[32,4],[28,4],[24,4]]],["농수산물시장삼거리","청주시 흥덕구","2025",9,[[37,3],[77,3],[37,3]]],["농수산물시장삼거리","청주시 흥덕구","2025",18,[[39,3],[82,3],[30,3]]],["농수산물시장삼거리","청주시흥덕구 운천.신봉동 1순환로","2017",9,[[83,3],[34,4],[34,3]]],["농업기술센터 앞 교차로","청주시 흥덕구 서부로1123번길 47 41 (강서동)","2020",9,[[35,3],[15,3],[36,3],[22,3]]],["농협사거리","청주시 상당구 주중동","2016",8,[[27,4],[25,4],[51,4],[23,4],[34,4]]],["다이소앞사거리","청주시 흥덕구 오송읍 연제리 664 1 664 8","2021",9,[[37,3],[62,3],[37,3],[32,3]]],["다이소앞사거리","청주시 흥덕구 오송읍 연제리 664 1664 8","2021",9,[[37,3],[62,3],[37,3],[32,3]]],["대농공판장삼거리","청주시흥덕구 강서1동 2순환로1124번길","2016",13,[[87,3],[27,3],[37,3]]],["대현빌딩 앞 교차로","청주 가경동 661 2번지 일원","2020",9,[[47,3],[22,3],[37,3],[17,3],[22,3]]],["대현빌딩 앞 교차로","청주시 흥덕구 가경동","2019",9,[[60,3],[14,3],[37,3]]],["도청사거리","청주시 상당구 상당구 문화동44 26 26 4번지 일원","2021",9,[[56,4],[16,4],[26,4],[26,4]]],["동일방직(주) 앞 교차로","청주시 흥덕구 복대동","2017",19,[[28,0],[129,3]]],["두릉교차로","청주시 청원구 오창읍 후기리 일원","2015",19,[[87,3],[17,3],[17,3],[17,3]]],["두릉사거리","청주시 오찹읍 후기리 일원","2022",17,[[57,3],[17,3],[17,3],[17,3],[17,3]]],["두산위브더제니스 앞 교차로 (평일)","청주시 서원구 사직동 235 11번지 일원","2023",9,[[107,3],[30,3]]],["두산위브더제니스 입구","청주시 흥덕구 사직동","2016",9,[[117,3],[30,0]]],["두산위브데제니스 앞 교차로 (휴일)","청주시 서원구 사직동 235 11번지 일원","2023",18,[[107,3],[30,3]]],["레인보우빌딩 앞 사거리","청주시 흥덕구 강서동","2014",19,[[79,3],[31,3],[31,3]]],["롯데마트앞","청주시 상당구 운동동","2012",19,[[31,3],[25,3],[31,3],[36,3]]],["리버파크자이아파트 앞 교차로","청주시 흥덕구 옥산면 소로길 17","2020",18,[[82,3],[18,3],[31,3]]],["리버파크자이아파트 앞 교차로","청주시 흥덕구 옥산면 소로길 17","2020",19,[[82,3],[18,3],[31,3]]],["마실 앞 교차로","청주시 서원구 서부로1447번길 16 3 (개신동)","2020",9,[[90,3],[30,3],[31,3]]],["마실 앞 삼거리","청주시 서원구 개신동 일원","2020",19,[[31,3],[90,3],[30,3]]],["마실앞교차로","청주시 서원구 서부로1465번길 37 (개신동)","2021",9,[[90,3],[30,3],[31,3]]],["마이마트교차로","청주시 청원구 오창읍 양청리 801801 1번지 일원","2022",19,[[47,3],[17,3],[32,3],[32,3]]],["마이마트교차로","청주시 청원구 오창읍 중심상업2로 9 27 인근","2022",19,[[47,3],[17,3],[32,3],[32,3]]],["만수공원앞사거리","청주시 흥덕구 오송읍 연제리 664 1 664 8","2021",9,[[37,3],[37,3],[32,3],[32,3]]],["만수공원앞사거리","청주시 흥덕구 오송읍 연제리 664 1664 8","2021",9,[[37,3],[37,3],[32,3],[32,3]]],["만화교차로","청주시 오찹읍 후기리 일원","2022",17,[[85,3],[7,3],[39,3]]],["만화교차로","청주시 청원구 오창읍 후기리 일원","2015",19,[[87,3],[17,3],[17,3],[17,3]]],["매그나칩 반도체 앞 교차로","청주시 흥덕구 복대동","2017",19,[[25,3],[25,3],[32,3],[30,3],[25,3]]],["명암유원지 주변 산성삼거리","청주시 상당구 명암동","2019",19,[[20,3],[42,3],[69,3]]],["명암유원지입구 주변 명암타워 삼거리","청주시 상당구 명암동","2019",19,[[20,3],[76,3],[35,3]]],["모충2단지입구","청주시 흥덕구 모충동","2016",19,[[27,3],[78,3],[26,3]]],["모충대교 오거리","청주시 서원구 모충로153번길 19 (사직동 목련아파트)","2020",19,[[23,3],[31,3],[47,3],[37,3]]],["모충삼호2차입구","청주시 흥덕구 모충동","2016",19,[[39,4],[38,4],[26,3],[23,3]]],["모충삼호APT 앞 사거리","청주시 서원구 충렬로 49 (사직동)","2024",9,[[24,4],[48,4],[48,4],[24,4]]],["미쉐린타이어 앞","청주시 흥덕구 사직동","2016",9,[[111,3],[17,3],[26,0]]],["미평사거리","청주시 서원구 분평동 213번지 일원","2025",19,[[12,3],[48,3],[21,3],[27,3],[27,3]]],["미평사거리","청주시 서원구 장성동 134번지 일원","2023",9,[[12,3],[48,3],[21,3],[27,3],[27,3]]],["미평사거리","청주시 서원구 장성동 135번지 일원","2023",9,[[12,3],[48,3],[21,3],[27,3],[27,3]]],["바이브록앞교차로","청주시 오송읍 일원","2021",9,[[30,3],[33,3],[37,3],[38,3]]],["방서사거리","청주시 상당구 운동동","2012",19,[[26,3],[31,3],[22,3],[18,3],[38,3]]],["방서사거리","청주시 상당구 지북동","2017",19,[[29,3],[23,3],[25,3],[33,3],[25,3]]],["방서사거리","청주시 상당구 평촌동","2015",9,[[17,3],[35,3],[24,3],[25,3],[34,3]]],["방서사거리","청주시 상당구 평촌동","2015",19,[[17,3],[35,3],[24,3],[25,3],[34,3]]],["방아다리사거리","청주시 수동 일원","2020",19,[[75,3],[17,3],[25,3],[21,3]]],["백제유물전시관앞교차로","청주시 흥덕구","2025",9,[[35,3],[21,3],[95,3]]],["백제유물전시관앞교차로","청주시 흥덕구","2025",18,[[35,3],[21,3],[95,3]]],["베스티안병원","청주시 흥덕구 오송읍 오송생명로 123","2022",9,[[41,4],[26,4],[41,4],[26,4]]],["병무청사거리","청주시 서원구 모충로153번길 19 (사직동 목련아파트)","2020",19,[[60,3],[24,3],[28,3],[26,3]]],["병무청사거리","청주시 흥덕구 사직동","2016",19,[[59,4],[23,4],[27,4],[25,4]]],["병무청사거리","청주시 흥덕구 사직동","2022",9,[[52,5],[22,5],[28,5],[28,5]]],["보건복지인력개발원 앞 교차로","청주시 흥덕구 오송읍 상정1길 93 5","2021",9,[[34,4],[32,4],[32,4],[36,4]]],["보건복지인력개발원앞교차로","청주시 오송읍 일원","2021",9,[[34,3],[34,3],[35,3],[35,3]]],["복대사거리","청주시 흥덕구 복대동","2017",19,[[32,3],[18,3],[26,3],[17,3],[32,3]]],["복대사거리","청주시흥덕구 복대1동 복대로220번길","2015",19,[[28,3],[20,3],[31,3],[28,3],[28,3]]],["복대중삼거리","청주시흥덕구 강서1동 2순환로1124번길","2016",13,[[87,3],[27,3],[37,3]]],["봉명사거리","청주시 흥덕구 복대동","2017",19,[[38,3],[36,3],[32,3],[42,3]]],["봉정사거리","청주시 흥덕구 복대동","2017",19,[[21,3],[42,3],[22,3],[30,3],[30,3]]],["북이삼거리","청주시 청원구","2022",18,[[22,3],[92,3],[27,3]]],["분평사거리","청주시 상당구 지북동","2017",19,[[40,3],[37,3],[27,3],[17,3],[14,3]]],["분평사거리","청주시 서원구 분평동 213번지 일원","2025",19,[[23,3],[19,3],[26,3],[37,3],[30,3]]],["분평주공사거리","청주시 서원구 분평동 213번지 일원","2025",19,[[14,3],[25,3],[14,3],[32,3],[30,3]]],["뽈리나어린이집앞교차로","청주시 청원구 오창읍 두릉유리로 1099 21","2024",8,[[38,3],[23,3],[60,3]]],["사업지입구교차로","청주시흥덕구 복대1동 복대로220번길","2015",19,[[150,3],[19,3]]],["사인1리입구","청주시 흥덕구 석소동","2017",9,[[111,3],[13,3],[27,3]]],["사인리BS앞","청주시 흥덕구 석소동","2017",9,[[111,3],[13,3],[27,3]]],["사직1동주민센터 앞 교차로 (평일)","청주시 서원구 사직동 235 11번지 일원","2023",9,[[41,3],[15,3],[18,3]]],["사직1동주민센터 앞 교차로 (휴일)","청주시 서원구 사직동 235 11번지 일원","2023",18,[[41,3],[15,3],[18,3]]],["사직1동주민센터 입구","청주시 흥덕구 사직동","2016",9,[[34,3],[16,0],[19,3]]],["사직사거리","청주시 흥덕구 사직동","2016",19,[[55,4],[21,4],[30,4],[28,4]]],["사직사거리","청주시 흥덕구 사직동","2016",9,[[57,3],[22,3],[32,3],[27,3]]],["사직사거리","청주시 흥덕구 사직동","2022",9,[[54,5],[20,5],[29,5],[27,5]]],["사직사거리 (평일)","청주시 서원구 사직동 235 11번지 일원","2023",9,[[45,3],[25,3],[29,3],[29,3]]],["사직사거리 (휴일)","청주시 서원구 사직동 235 11번지 일원","2023",18,[[45,3],[25,3],[29,3],[29,3]]],["사창사거리","청주시 서원구 1순환로673번길 20 (사창동 신라아파트)","2025",9,[[27,4],[16,4],[28,4],[35,4],[24,4]]],["사창사거리","청주시 흥덕구 사창동","2016",9,[[27,4],[16,4],[28,4],[35,4],[24,4]]],["산남사거리","청주시 서원구 개신동 일원","2020",19,[[20,3],[15,3],[34,3],[31,3],[35,3]]],["산남주공2단지 앞","청주시 흥덕구 모충동","2016",19,[[125,3],[25,0]]],["산남주공3단지 앞","청주시 흥덕구 모충동","2016",19,[[29,5],[31,4],[31,4],[32,4]]],["산성초교 사거리","청주시 상당구 용담동","2013",9,[[27,3],[28,3],[31,3],[32,3]]],["산업단지육거리","청주시 흥덕구 복대동","2017",19,[[29,3],[16,3],[20,3],[13,3],[18,3],[26,3]]],["산업단지육거리","청주시 흥덕구 복대동","2021",19,[[16,5],[23,5],[27,5],[15,5],[18,5],[11,5]]],["산업단지육거리","청주시흥덕구 복대1동 복대로220번길","2015",19,[[29,3],[25,3],[18,3],[17,3],[25,3],[17,3]]],["삼남삼거리","청주시 흥덕구 분평동","2016",9,[[35,3],[20,3],[15,3],[33,3],[32,3]]],["삼남삼거리","청주시 흥덕구 분평동","2016",19,[[35,3],[20,3],[15,3],[33,3],[32,3]]],["삼성스토어 앞 교차로","청주시 서원구 분평동 213번지 일원","2025",19,[[73,3],[32,3],[36,3]]],["삼성아파트앞 사거리","청주시상당구 율량.사천동 2순환로","2015",9,[[25,3],[27,3],[29,3],[27,3]]],["삼원맨션사거리","청주시 흥덕구 사직동","2016",9,[[34,3],[14,3],[34,3],[29,3],[34,3]]],["삼원맨션사거리 (평일)","청주시 서원구 사직동 235 11번지 일원","2023",9,[[33,3],[26,3],[37,3],[16,3],[33,3]]],["삼원맨션사거리 (휴일)","청주시 서원구 사직동 235 11번지 일원","2023",18,[[33,3],[26,3],[37,3],[16,3],[33,3]]],["삼호2차아파트 앞 사거리","청주시 서원구 모충로153번길 19 (사직동 목련아파트)","2020",19,[[29,3],[25,3],[39,3],[45,3]]],["삼호2차아파트 앞 사거리","청주시 흥덕구 사직동","2022",9,[[36,4],[46,4],[28,4],[24,4]]],["삼호2차아파트앞 사거리","청주시 흥덕구 사직동","2016",19,[[46,4],[36,4],[25,4],[27,4]]],["삼화전기 앞 교차로","청주시 흥덕구 복대동","2020",19,[[21,3],[45,3],[27,3],[45,3]]],["상당사거리","청주시 상당구 상당구 문화동44 26 26 4번지 일원","2021",9,[[36,4],[31,4],[31,4],[26,4]]],["상당초등학교 사거리","청주시 상당구 운동동","2018",19,[[36,5],[27,5],[36,5],[31,5]]],["상당초등학교앞","청주시 상당구 운동동","2012",19,[[27,3],[40,3],[26,3],[40,3]]],["상리사거리","청주시 상당구 명암동","2019",19,[[47,3],[52,3],[22,3],[24,3],[20,3]]],["상리사거리","청주시 상당구 율량동","2015",19,[[20,3],[42,3],[20,3],[43,3],[17,3],[20,3]]],["상정2교 앞 교차로","청주시 흥덕구 오송읍 상정1길 93 5","2021",9,[[31,4],[34,4],[30,4],[39,4]]],["상정4교 앞 삼거리","청주시 흥덕구 오송읍 상정1길 93 5","2021",9,[[102,4],[16,4]]],["새마을금고사거리","청주시 흥덕구 2순환로 1262 (가경동)","2019",19,[[26,3],[27,3],[58,3],[17,3]]],["새마을금고앞교차로","청주시흥덕구 운천.신봉동 1순환로","2017",9,[[129,3],[28,0]]],["서부소방서사거리","청주시 흥덕구 2순환로 1229 (가경동)","2019",19,[[31,3],[39,3],[29,3],[29,3]]],["서울녹각삼계탕교차로","청주시 청원구 오창읍 양청리 801801 1번지 일원","2022",19,[[32,3],[27,3],[32,3],[27,3]]],["서울아파트 앞 교차로","청주시 서원구 1순환로673번길 20 (사창동 신라아파트)","2025",9,[[87,4],[25,4],[30,3]]],["서울아파트 앞 교차로","청주시 흥덕구 사창동","2016",9,[[87,4],[25,4],[30,0]]],["서청주교사거리","청주시 흥덕구 복대동","2017",19,[[36,3],[35,3],[32,3],[45,3]]],["서현중사거리","청주시 흥덕구 2순환로 1229 (가경동)","2019",19,[[35,3],[66,3],[26,3],[36,3]]],["서현중사거리","청주시 흥덕구 2순환로1340번길 55 (가경동)","2020",19,[[55,3],[22,3],[34,3],[37,3]]],["서현중학교 앞 교차로","청주 가경동 661 2번지 일원","2020",9,[[91,3],[23,3],[37,3]]],["서현중학교 앞 교차로","청주시 흥덕구 가경동","2019",9,[[83,3],[31,3]]],["서현중학교 앞 삼거리","청주시 흥덕구 가경동","2017",9,[[83,3],[31,3]]],["서현중학교 앞 삼거리","청주시 흥덕구 가경동","2016",9,[[82,3],[32,3]]],["서현초등학교 앞 교차로","청주 가경동 661 2번지 일원","2020",9,[[27,3],[22,3],[38,3],[37,3],[21,3]]],["서현초등학교 앞 교차로","청주시 흥덕구 가경동","2019",9,[[49,3],[17,3],[30,3],[12,3]]],["서현초등학교 앞 사거리","청주시 흥덕구 가경동","2017",9,[[49,3],[17,3],[30,3],[12,3]]],["서현초등학교 앞 사거리","청주시 흥덕구 가경동","2016",9,[[27,3],[14,3],[50,3],[17,3]]],["석곡정미소 앞 삼거리","청주시 흥덕구 서부로1123번길 47 41 (강서동)","2020",9,[[62,3],[22,3],[27,3]]],["석곡지게차 앞 사거리","청주시 흥덕구 서부로1123번길 47 41 (강서동)","2020",9,[[127,3],[7,3]]],["석교육거리","청주시 상당구 지북동","2017",19,[[29,3],[34,3],[31,3],[34,3]]],["선관위사거리","청주시 흥덕구 2순환로 1229 (가경동)","2019",19,[[30,3],[35,3],[26,3],[40,3],[29,3]]],["성모병원 사거리","청주시 상당구 주중동","2016",8,[[40,4],[32,4],[28,4],[42,4],[18,4]]],["성모병원 사거리","청주시상당구 율량.사천동 2순환로","2015",9,[[17,3],[37,3],[35,3],[27,3],[29,3]]],["성산사거리","청주시 오찹읍 후기리 일원","2022",17,[[29,3],[30,3],[49,3],[30,3]]],["성산삼거리","청주시 청원구 오창읍 후기리 일원","2015",19,[[47,3],[17,3],[57,3]]],["성화사거리","청주시 서원구 서부로1447번길 16 3 (개신동)","2020",9,[[63,3],[12,3],[41,3],[32,3]]],["성화사거리","청주시 서원구 서부로1465번길 37 (개신동)","2021",9,[[63,3],[12,3],[41,3],[32,3]]],["세무서앞삼거리","청주시흥덕구 복대1동 복대로220번길","2015",19,[[33,3],[59,3],[18,3],[18,3]]],["세중테크노밸리 앞 교차로","청주시 흥덕구 복대동","2017",19,[[29,3],[100,3],[22,3]]],["세중테크노밸리 앞 교차로","청주시 흥덕구 복대동","2020",19,[[100,3],[22,3],[29,3]]],["센티움오피스텔","청주시 흥덕구 오송읍 오송생명로 123","2022",9,[[26,4],[26,4],[41,4],[41,4]]],["소로사거리","청주시 흥덕구 옥산면 소로길 17","2020",18,[[69,3],[17,3],[17,3],[25,3]]],["소로사거리","청주시 흥덕구 옥산면 소로길 17","2020",19,[[69,3],[17,3],[17,3],[25,3]]],["소로삼거리","청주시 흥덕구 옥산면 소로길 17","2020",18,[[84,3],[20,3],[27,3]]],["소로삼거리","청주시 흥덕구 옥산면 소로길 17","2020",19,[[84,3],[20,3],[27,3]]],["소로초등학교 앞 교차로","청주시 흥덕구 옥산면 소로길 17","2020",18,[[82,3],[18,3],[31,3]]],["소로초등학교 앞 교차로","청주시 흥덕구 옥산면 소로길 17","2020",19,[[82,3],[18,3],[31,3]]],["솔밭공원 앞 교차로","청주시 흥덕구 복대동","2014",19,[[76,3],[20,3],[34,3],[18,3]]],["솔밭공원4거리","청주시 흥덕구 복대동","2017",19,[[32,3],[32,3],[24,3],[36,3],[21,3]]],["솔밭초등학교 앞 교차로","청주시 흥덕구 복대동","2014",19,[[33,3],[16,3],[33,3],[36,3]]],["송절교차로","청주시 흥덕구 복대동","2017",19,[[57,3],[62,3],[22,3]]],["송정 사거리","청주시 흥덕구 복대동","2017",19,[[46,3],[31,3],[18,3],[53,3]]],["쇠내울소공원사거리","청주시상당구 금천동 쇠내로","2015",9,[[27,3],[32,3],[42,3],[27,3]]],["시계탑 오거리","청주시 서원구 1순환로673번길 20 (사창동 신라아파트)","2025",9,[[27,4],[16,4],[28,4],[35,4],[24,4]]],["시계탑오거리","청주시 흥덕구 사창동","2016",9,[[27,4],[16,4],[28,4],[35,4],[24,4]]],["시외버스터미널사거리","청주시 흥덕구 2순환로 1229 (가경동)","2019",19,[[18,3],[21,3],[30,3],[18,3],[32,3],[23,3]]],["시외버스터미널사거리","청주시 흥덕구 2순환로 1262 (가경동)","2019",19,[[18,3],[23,3],[22,3],[18,3],[22,3],[19,3]]],["시외버스터미널사거리","청주시 흥덕구 풍년로205번길 25 (가경동)","2022",19,[[17,3],[22,3],[32,3],[22,3],[22,3],[17,3]]],["식약처앞사거리","청주시 흥덕구 오송읍 연제리 664 1 664 8","2021",9,[[27,3],[47,3],[32,3],[32,3]]],["식약처앞사거리","청주시 흥덕구 오송읍 연제리 664 1664 8","2021",9,[[27,3],[47,3],[32,3],[32,3]]],["신봉동성당앞 교차로","청주시흥덕구 운천.신봉동 1순환로","2017",9,[[97,4],[34,4],[18,3]]],["신봉사거리","청주시 흥덕구","2025",9,[[29,3],[46,3],[29,3],[44,3]]],["신봉사거리","청주시 흥덕구","2025",18,[[30,3],[47,3],[30,3],[41,3]]],["신촌2 교차로","청주시 흥덕구 오송읍 상정1길 93 5","2021",9,[[69,3],[45,3]]],["신촌교 교차로","청주시 흥덕구 오송읍 상정1길 93 5","2021",9,[[47,3],[27,3],[17,3]]],["아이나노텍 앞 교차로","청주시 흥덕구 복대동","2017",19,[[37,3],[92,3],[22,3]]],["약수교(남측) 근처 명암육교서측 교차로","청주시 상당구 명암동","2019",19,[[16,3],[48,3]]],["약수교북측 주변 명암육교동측 교차로","청주시 상당구 명암동","2019",19,[[16,3],[12,3],[33,3]]],["엘지교차로","청주시 흥덕구 옥산면 소로길 17","2020",18,[[30,3],[30,3],[34,3],[34,3]]],["엘지교차로","청주시 흥덕구 옥산면 소로길 17","2020",19,[[30,3],[30,3],[34,3],[34,3]]],["여천삼거리","청주시 청원구","2022",18,[[27,3],[74,3],[30,3]]],["연세우유 앞 교차로","청주시 청원구 충청대로 4 (내덕동)","2024",9,[[26,4],[79,4],[16,4],[23,4]]],["오동교차로","청주시 상당구 주중동","2016",8,[[12,4],[16,4],[21,4],[92,4],[29,4]]],["오송호수공원","청주시 흥덕구 오송읍 오송생명로 123","2022",9,[[36,4],[31,4],[36,4],[31,4]]],["오송힐데스하임앞교차로","청주시 오송읍 일원","2021",9,[[32,3],[36,3],[37,3],[33,3]]],["오스람전기 앞 교차로","청주시 흥덕구 복대동","2017",19,[[27,3],[107,3]]],["오창사거리","청주시 오찹읍 후기리 일원","2022",17,[[25,3],[35,3],[20,3],[45,3],[20,3]]],["오창사거리","청주시 청원구 오창읍 후기리 일원","2015",19,[[75,3],[21,3],[21,3],[21,3]]],["오창중앙병원 앞 사거리","청주시 청원구 오창읍 과학산업3로 168","2022",19,[[41,3],[20,3],[33,3],[34,3]]],["옥산산업단지입구 교차로","청주시 흥덕구 옥산면 국사리 산 200번지","2025",9,[[20,3],[20,3],[20,3]]],["올리브상가앞사거리","청주시 청원구 오창읍 오창공원로 127","2025",19,[[62,3],[31,3],[38,3],[37,3]]],["용두가든앞교차로","청주시 청원구 오창읍","2023",9,[[45,3],[19,3]]],["용암2지구 진입삼거리","청주시 상당구 운동동","2012",19,[[27,3],[19,3],[85,3]]],["용암농협사거리","청주시 상당구 운동동","2012",19,[[37,3],[34,3],[16,3],[29,3],[19,3]]],["우암오거리","청주시 수동 일원","2020",19,[[26,3],[22,3],[29,3],[32,3],[26,3]]],["우암초교앞교차로","청주시 수동 일원","2020",19,[[28,3],[31,3],[18,3],[61,3]]],["운동장삼거리","청주시 서원구 충렬로 49 (사직동)","2024",9,[[36,4],[79,4],[33,4]]],["운전학원앞","청주시 상당구 운동동","2012",19,[[20,3],[95,3],[11,3]]],["운천주공입구 교차로","청주시흥덕구 운천.신봉동 1순환로","2017",9,[[103,4],[31,4],[15,3]]],["원봉공원 앞","청주시 상당구 운동동","2018",19,[[41,5],[25,5],[24,5],[30,5]]],["월곡사거리","청주시 흥덕구 석소동","2017",9,[[47,3],[43,3],[23,3],[15,3],[17,3]]],["월명공원 사거리","청주시 흥덕구 복대동","2017",19,[[45,3],[34,3],[34,3],[25,3]]],["유리삼거리","청주시 청원구","2022",18,[[30,3],[84,3],[17,3]]],["율량교차로","청주시 상당구 주중동","2016",8,[[30,4],[37,4],[47,4],[12,4],[44,4]]],["율량교차로","청주시상당구 율량.사천동 2순환로","2015",9,[[37,4],[25,4],[24,4],[14,4],[40,4]]],["이리도스 앞 삼거리","청주시 청원구 오창읍 과학산업3로 168","2022",19,[[74,3],[20,3],[37,3]]],["이마트 앞 교차로","청주시 서원구 장성동 134번지 일원","2023",9,[[30,3],[68,3],[33,3]]],["이마트 앞 교차로","청주시 서원구 장성동 134번지 일원","2023",9,[[30,3],[68,3],[33,3],[33,3]]],["이마트 앞 교차로","청주시 서원구 장성동 135번지 일원","2023",9,[[30,3],[68,3],[33,3]]],["자동차매매단지 앞","청주시 상당구 주중동","2016",8,[[14,4],[131,4],[5,4],[9,4],[11,4]]],["자연과학교육원 사거리","청주시 상당구 상당구 문화동44 26 26 4번지 일원","2021",9,[[22,4],[40,4],[22,4],[40,4]]],["장암사거리","청주시 상당구 지북동","2017",19,[[23,3],[31,3],[77,3],[17,3]]],["장암사거리","청주시 서원구 장성동 134번지 일원","2023",9,[[20,3],[50,3],[15,3],[27,3],[33,3]]],["장암사거리","청주시 서원구 장성동 135번지 일원","2023",9,[[20,3],[50,3],[15,3],[27,3],[33,3]]],["장한빌딩 앞 사거리","청주시 흥덕구 강서동","2014",19,[[79,3],[31,3],[31,3]]],["장한빌딩사거리","청주시 흥덕구 2순환로 1229 (가경동)","2019",19,[[32,3],[34,3],[49,3],[23,3]]],["장한빌딩사거리","청주시 흥덕구 2순환로 1262 (가경동)","2019",19,[[45,3],[17,3],[31,3],[35,3]]],["정치망교차로","청주시 청원구 오창읍 양청리 801801 1번지 일원","2022",19,[[77,3],[19,3],[35,3]]],["정하사거리","청주시 상당구 주중동","2016",8,[[47,4],[24,4],[26,4],[19,4],[24,4]]],["제1운천교 앞 교차로 (평일)","청주시 서원구 사직동 235 11번지 일원","2023",9,[[40,3],[41,3],[26,3],[41,3]]],["제1운천교 앞 교차로 (휴일)","청주시 서원구 사직동 235 11번지 일원","2023",18,[[40,3],[41,3],[26,3],[41,3]]],["제1운천교사거리","청주시 흥덕구 사직동","2016",9,[[26,3],[40,3],[17,3],[65,3]]],["종축장삼거리","청주시 상당구 주중동","2016",8,[[19,4],[23,4],[136,4]]],["종축장삼거리","청주시 상당구 주중동","2016",9,[[19,4],[23,4],[136,4]]],["주성고교 입구","청주시 상당구 용담동","2013",9,[[110,3],[24,3]]],["주성사거리","청주시 상당구 주중동","2016",8,[[42,4],[44,4],[54,4],[24,4]]],["죽림사거리","청주시 흥덕구 2순환로1340번길 55 (가경동)","2020",19,[[31,3],[22,3],[26,3],[31,3],[35,3]]],["죽천교사거리","청주시 흥덕구 2순환로 1229 (가경동)","2019",19,[[24,3],[31,3],[46,3],[27,3]]],["증평IC교차로","청주시 청원구","2022",18,[[18,3],[39,3],[13,3],[38,3]]],["지북교차로","청주시 상당구 운동동","2012",19,[[23,3],[38,3],[23,3],[13,3],[23,3]]],["지북교차로","청주시 상당구 지북동","2017",19,[[24,3],[24,3],[24,3],[36,3],[17,3]]],["지북사거리","청주시 상당구 평촌동","2015",9,[[17,3],[35,3],[24,3],[25,3],[34,3]]],["지북사거리","청주시 상당구 평촌동","2015",19,[[17,3],[35,3],[24,3],[25,3],[34,3]]],["진암사거리","청주시 청원구","2022",18,[[66,3],[12,3],[35,3],[25,3]]],["창들2교차로","청주시 오찹읍 후기리 일원","2022",17,[[74,3],[37,3],[20,3]]],["창들교차로","청주시 청원구 오창읍 후기리 일원","2015",19,[[32,3],[17,3],[22,3],[47,3]]],["창리사거리","청주시 청원구","2022",18,[[30,3],[33,3],[25,3],[29,3],[28,3]]],["창신신협 앞 사거리","청주시 서원구 충렬로 49 (사직동)","2024",9,[[29,4],[29,4],[70,4],[16,4]]],["철탑 사거리","청주시 흥덕구 복대동","2017",19,[[37,3],[42,3],[27,3],[22,3]]],["청강원 사거리","청주시 흥덕구 오송읍 상정1길 93 5","2021",9,[[41,4],[11,4],[56,4],[26,4]]],["청주대교사거리 (평일)","청주시 서원구 사직동 235 11번지 일원","2023",9,[[24,3],[30,3],[21,3],[32,3],[18,3]]],["청주대교사거리 (휴일)","청주시 서원구 사직동 235 11번지 일원","2023",18,[[24,3],[30,3],[21,3],[32,3],[18,3]]],["청주대사거리","청주시 상당구 내덕동","2017",19,[[24,3],[24,3],[30,3],[16,3],[31,3]]],["청주북부터미널북측삼거리","청주시 청원구 오창읍 오창공원로 127","2025",19,[[81,3],[16,3],[34,3]]],["청주북부터미널서측삼거리","청주시 청원구 오창읍 오창공원로 127","2025",19,[[72,3],[27,3],[32,3]]],["청주시외버스터미널 앞 사거리","청주시 흥덕구 강서동","2014",19,[[20,3],[19,3],[21,3],[24,3],[24,3],[24,3]]],["청주여자중학교 앞 사거리","청주시 흥덕구 사직동","2022",9,[[109,5],[31,5]]],["청주여자중학교앞 사거리","청주시 흥덕구 사직동","2016",19,[[114,5],[31,0]]],["청주우편집중국 입구","청주시 흥덕구 모충동","2016",19,[[26,3],[27,3],[77,4]]],["청주자동차공업사삼거리","청주시흥덕구 강서1동 2순환로1124번길","2016",13,[[82,3],[37,3],[32,3]]],["청주타워앞","청주시 상당구 운동동","2012",19,[[27,3],[24,3],[19,3],[38,3],[27,3]]],["체육회관입구","청주시 상당구 운동동","2012",19,[[9,3],[94,3],[28,3]]],["충대사거리","청주시 흥덕구 복대동","2017",19,[[27,3],[34,3],[22,3],[27,3],[25,3]]],["충북대병원 후문","청주시 서원구 개신동 일원","2020",19,[[99,3],[19,3],[33,3]]],["충북대병원후문 교차로","청주시 서원구 서부로1447번길 16 3 (개신동)","2020",9,[[92,3],[26,3],[33,3]]],["충북대병원후문교차로","청주시 서원구 서부로1465번길 37 (개신동)","2021",9,[[92,3],[26,3],[33,3]]],["충북지방중소벤처기업청 앞 교차로","청주시 청원구 오창읍 중심상업2로 9 27 인근","2022",19,[[32,3],[27,3],[32,3],[27,3]]],["충북체육회관앞교차로","청주시 상당구 지북동","2017",19,[[84,3],[24,3],[33,3]]],["충북학생교육문화원 앞","청주시 상당구 주중동","2016",8,[[126,4],[16,4],[21,4],[11,4]]],["충청에너지 서비스 앞 교차로","청주시 흥덕구 복대동","2017",19,[[15,3],[105,3],[26,3]]],["태산아파트앞","청주시 상당구 운동동","2012",19,[[20,3],[33,3],[15,3],[28,3],[29,3]]],["태실근린공원 앞 사거리","청주시 청원구 오창읍 과학산업3로 168","2022",19,[[27,3],[37,3],[27,3],[37,3]]],["터미널사거리","청주시 흥덕구 2순환로 1229 (가경동)","2019",19,[[67,3],[67,3]]],["터미널사거리","청주시 흥덕구 비하로12번길 60 (비하동)","2023",18,[[75,4],[77,4]]],["터미널사거리","청주시 흥덕구 풍년로205번길 25 (가경동)","2022",19,[[67,3],[67,3]]],["터미널주차장사거리","청주시 흥덕구 2순환로 1229 (가경동)","2019",19,[[34,3],[30,3],[35,3],[34,3]]],["터미널주차장사거리","청주시 흥덕구 풍년로205번길 25 (가경동)","2022",19,[[37,3],[35,3],[35,3],[31,3]]],["팔결교삼거리","청주시 청원구","2022",18,[[39,3],[45,3]]],["평화아파트 앞 교차로","청주시 서원구 1순환로673번길 20 (사창동 신라아파트)","2025",9,[[87,4],[25,4],[30,3]]],["평화아파트 앞 교차로","청주시 흥덕구 사창동","2016",9,[[87,4],[25,4],[30,0]]],["폴리텍대사거리","청주시 흥덕구 복대동","2021",19,[[20,3],[24,3],[20,3],[24,3]]],["학천사거리","청주시 흥덕구 석소동","2017",9,[[84,3],[12,3],[27,3],[25,3]]],["한국도자기 앞 교차로","청주시 흥덕구 복대동","2017",19,[[20,3],[25,3],[25,3],[18,3]]],["한국사료 한미양행 앞 교차로","청주시 흥덕구 복대동","2017",19,[[20,3],[24,3],[20,3],[24,3]]],["한국은행 충북본부 사거리","청주시 상당구 상당구 문화동44 26 26 4번지 일원","2021",9,[[86,4],[19,4],[23,4]]],["한국은행북동측교차로","청주시 수동 일원","2020",19,[[25,0],[122,3]]],["한랩앞 삼거리","청주시 흥덕구 오송읍 상정1길 93 5","2021",9,[[88,4],[29,4],[21,4]]],["한림기업 앞 삼거리","청주시 청원구 오창읍 과학산업3로 168","2022",19,[[75,3],[33,3],[23,3]]],["한성저축은행사거리","청주시 수동 일원","2020",19,[[22,3],[24,3],[72,3],[20,3]]],["한솔초교정문사거리","청주시 흥덕구 분평동","2016",9,[[57,3],[57,3],[27,3]]],["한솔초교정문사거리","청주시 흥덕구 분평동","2016",19,[[57,3],[57,3],[27,3]]],["한일시멘트 앞 교차로","청주시 흥덕구 복대동","2014",19,[[59,3],[37,3],[35,3],[17,3]]],["홈플러스앞삼거리","청주시 청원구 오창읍 오창공원로 127","2025",19,[[31,3],[34,3],[29,3],[34,3]]],["화산교 북측 교차로","청주시 청원구 오창읍 꽃화산길 51 20","2023",8,[[44,3],[20,3]]],["화산교 북측 교차로","청주시 청원구 오창읍 꽃화산길 51 20","2023",9,[[44,3],[20,3]]],["화산교 북측 교차로","청주시 청원구 오창읍 꽃화산길 51 20","2023",18,[[44,3],[20,3]]],["화산교 북측 교차로","청주시 청원구 오창읍 꽃화산길 51 20","2023",19,[[44,3],[20,3]]],["화산교 북측 교차로","청주시 청원구 오창읍 꽃화산길 51 20","2023",11,[[44,3],[20,3]]],["화산교 북측 교차로","청주시 청원구 오창읍 꽃화산길 51 20","2023",12,[[44,3],[20,3]]],["화산교 북측 교차로","청주시 청원구 오창읍 꽃화산길 51 20","2023",17,[[44,3],[20,3]]],["화산교삼거리","청주시 오찹읍 후기리 일원","2022",17,[[45,3],[19,3]]],["효성병원사거리","청주시상당구 금천동 쇠내로","2015",9,[[47,3],[17,3],[37,3],[27,3]]],["효촌IC","청주시 상당구 지북동","2017",19,[[80,3],[34,3],[17,3]]],["효촌사거리","청주시 상당구 지북동","2017",19,[[31,3],[15,3],[15,3],[46,3],[18,3]]],["흥덕고앞","청주시흥덕구 강서1동 2순환로1124번길","2016",13,[[87,3],[27,3],[37,3]]],["흥덕구청 임시청사 앞 교차로","청주시 흥덕구 복대동","2014",19,[[35,3],[15,3],[51,3],[17,3]]]];
+function renderTia(){
+  const q=$("tq").value.trim().replace(/\s+/g,"");
+  const list=TIA.filter(x=>!q||(x[0]+x[1]).replace(/\s+/g,"").includes(q)).slice(0,25);
+  $("tres").innerHTML=list.length?list.map(x=>{
+    const i=TIA.indexOf(x),cyc=x[4].reduce((a,p)=>a+p[0]+p[1],0);
+    return `<div class="tc"><b>${esc(x[0])}</b><div class="mu">${esc(x[1])} · ${x[2]}년 ${x[3]<12?"오전":"오후"} ${x[3]<=12?x[3]:x[3]-12}시 조사 · 주기 ${cyc}초</div><div class="ph">${x[4].map((p,j)=>`<button data-i="${i}" data-j="${j}">현시${j+1} · 초록 ${p[0]}초 / 빨강 ${cyc-p[0]}초</button>`).join("")}</div></div>`}).join(""):'<div class="mu" style="padding:8px 0">결과가 없어요. 다른 이름으로 검색해 보세요.</div>';
+}
+$("tiaopen").onclick=()=>{$("tia").style.display="flex";renderTia();$("tq").focus()};
+$("tclose").onclick=()=>{$("tia").style.display="none"};
+$("tq").addEventListener("input",renderTia);
+$("tres").onclick=e=>{
+  const b=e.target.closest("button");if(!b)return;
+  const x=TIA[+b.dataset.i],j=+b.dataset.j,cyc=x[4].reduce((a,p)=>a+p[0]+p[1],0);
+  $("gs").value=x[4][j][0];$("rs").value=cyc-x[4][j][0];
+  if(!$("name").value.trim())$("name").value=x[0];
+  $("mt").textContent="초록/빨강 길이를 채웠어요. 지금 초록불이면 ‘지금 초록 시작’을 눌러 기준 시각을 맞춰 주세요.";
+  $("tia").style.display="none";
+};
+
+/* UI: 시트 접기, 더보기 메뉴, 지도 크기 갱신 */
+try{new ResizeObserver(()=>map.invalidateSize()).observe($("map"))}catch(e){}
+$("hd").onclick=()=>{$("sheet").classList.toggle("min")};
+$("moreBtn").onclick=e=>{e.stopPropagation();$("more").style.display=$("more").style.display==="flex"?"none":"flex"};
+document.addEventListener("click",e=>{if(!e.target.closest("#moreWrap"))$("more").style.display="none"});
+$("more").addEventListener("click",e=>{if(e.target.closest("button"))setTimeout(()=>{$("more").style.display="none"},0)});
+</script></body></html>
