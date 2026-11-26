@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>신호 API 진단</title>
+<style>
+:root{--bg:#fff;--bg2:#f3f4f6;--tx:#14171a;--mu:#6b7280;--ok:#16a34a;--no:#dc2626;--ac:#2563eb}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1e24;--bg2:#272b34;--tx:#eceef1;--mu:#9aa1ad;--ok:#22c55e;--no:#f87171;--ac:#60a5fa}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Noto Sans KR",sans-serif}
+main{max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:19px;margin:0 0 4px}.mu{color:var(--mu);font-size:13px}
+input{width:100%;padding:12px;border:1px solid #0002;border-radius:12px;background:var(--bg2);color:var(--tx);font-size:16px;margin:8px 0}
+button{padding:11px 16px;border:0;border-radius:12px;background:var(--ac);color:#fff;font-weight:700;font-size:15px}
+button:disabled{opacity:.5}
+table{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}
+td,th{padding:7px 6px;border-bottom:1px solid #0002;text-align:left}
+.ok{color:var(--ok);font-weight:700}.no{color:var(--no)}
+pre{background:var(--bg2);padding:10px;border-radius:10px;overflow:auto;font-size:12px;max-height:260px}
+</style></head><body><main>
+<h1>🚦 신호등 API 진단</h1>
+<div class="mu">지역별로 교차로 정보와 신호 잔여시간이 실제로 내려오는지 한 번에 확인해요. 호출은 이 사이트의 서버 함수(/api/rti)가 대신 하고, 인증키는 서버에만 있어요. 지역당 2번씩 호출하니 총 약 50건이 일일 한도(5,000건)에서 빠져요.</div>
+<button id="run">진단 시작</button>
+<div class="mu" id="st" style="margin-top:8px"></div>
+<table id="tb"><thead><tr><th>지역</th><th>코드</th><th>교차로 정보</th><th>신호 잔여시간</th></tr></thead><tbody></tbody></table>
+<div id="smp"></div>
+<script>
+const BASE="https://apis.data.go.kr/B551982/rti/";
+// 법정동 코드는 기억 기반이라 틀릴 수 있어요. 틀리면 "데이터 없음"으로 보일 수 있어요.
+const AREAS=[["서울특별시","1100000000"],["부산광역시","2600000000"],["대구광역시","2700000000"],["인천광역시","2800000000"],["광주광역시","2900000000"],["대전광역시","3000000000"],["울산광역시","3100000000"],["세종특별자치시","3600000000"],["경기도","4100000000"],["강원특별자치도","5100000000"],["강원도(구코드)","4200000000"],["충청북도","4300000000"],["충청남도","4400000000"],["전북특별자치도","5200000000"],["전라북도(구코드)","4500000000"],["전라남도","4600000000"],["경상북도","4700000000"],["경상남도","4800000000"],["제주특별자치도","5000000000"],["청주시","4311000000"],["청주시 상당구","4311100000"],["청주시 서원구","4311200000"],["청주시 흥덕구","4311300000"],["청주시 청원구","4311400000"],["비하동(주신 코드)","4311313800"]];
+const $=id=>document.getElementById(id);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function call(ep,code,rows){
+  try{
+    const r=await fetch(`/api/rti?ep=${ep}&stdgCd=${code}&pageNo=1&numOfRows=${rows}`);const t=await r.text();
+    try{const j=JSON.parse(t);
+      if(j.error)return{err:j.error};
+      return{j,t,code:j.header&&j.header.resultCode,total:j.body&&j.body.totalCount}}
+    catch(e){return{err:"JSON 아님: "+t.slice(0,80),t}}
+  }catch(e){return{err:"호출 실패 — 서버 함수가 배포됐는지 확인하세요"}}
+}
+function cell(r){
+  if(r.err)return `<span class="no">${r.err}</span>`;
+  const n=Number(r.total||0);
+  return n>0?`<span class="ok">${n.toLocaleString()}건</span>`:`<span class="no">없음 (${r.code||"?"})</span>`;
+}
+$("run").onclick=async()=>{
+  $("run").disabled=true;$("tb").tBodies[0].innerHTML="";$("smp").innerHTML="";
+  let sample=null,cors=false;
+  for(let i=0;i<AREAS.length;i++){
+    const [nm,code]=AREAS[i];$("st").textContent=`확인 중… ${i+1}/${AREAS.length} ${nm}`;
+    const a=await call("crsrd_map_info",code,1);
+    const b=await call("tl_drct_info",code,5);
+    if(a.err&&a.err.startsWith("호출 실패"))cors=true;
+    if(!sample&&b.j&&Number(b.total)>0)sample={nm,t:b.t};
+    $("tb").tBodies[0].insertAdjacentHTML("beforeend",`<tr><td>${nm}</td><td>${code}</td><td>${cell(a)}</td><td>${cell(b)}</td></tr>`);
+    await sleep(150);
+  }
+  $("st").textContent=cors?"일부 호출이 실패했어요. 서버 함수 배포와 RTI_KEY 설정을 확인하세요.":"진단이 끝났어요.";
+  if(sample){$("smp").innerHTML=`<h3 style="font-size:15px">신호 잔여시간 샘플 (${sample.nm})</h3><div class="mu">아래 내용을 복사해서 채팅에 붙여 주세요. (인증키는 포함되지 않아요)</div><pre id="pre"></pre>`;$("pre").textContent=sample.t.slice(0,3500)}
+  else $("smp").innerHTML='<div class="mu" style="margin-top:12px">신호 잔여시간이 내려오는 지역이 없었어요.</div>';
+  $("run").disabled=false;
+};
+</script></main></body></html>
