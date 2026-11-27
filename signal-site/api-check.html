@@ -1,68 +1,840 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>보행자 신호 API 통합 진단</title>
-<style>
-:root{--bg:#fff;--bg2:#f3f4f6;--tx:#14171a;--mu:#6b7280;--ok:#16a34a;--no:#dc2626;--ac:#2563eb;--line:#e5e7eb}
-@media(prefers-color-scheme:dark){:root{--bg:#1b1e24;--bg2:#272b34;--tx:#eceef1;--mu:#9aa1ad;--ok:#22c55e;--no:#f87171;--ac:#60a5fa;--line:#3b414c}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Noto Sans KR",sans-serif}main{max-width:1000px;margin:auto;padding:18px}h1{font-size:21px;margin:0 0 6px}h2{font-size:17px;margin:24px 0 9px}.mu,.small{color:var(--mu);font-size:13px}.small{overflow-wrap:anywhere}button{padding:12px 18px;border:0;border-radius:12px;background:var(--ac);color:white;font-weight:700;font-size:15px;cursor:pointer;margin-top:14px}button:disabled{opacity:.5;cursor:not-allowed}.status,.box,.stat{background:var(--bg2);border-radius:10px;padding:12px;margin-top:12px}.status{min-height:42px;font-size:13px}.progress{height:7px;margin-top:10px;background:var(--bg2);border-radius:10px;overflow:hidden}.progress div{width:0;height:100%;background:var(--ac);transition:width .2s}.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:13px}.stat-title{font-size:12px;color:var(--mu)}.stat strong{display:block;font-size:21px;margin-top:4px}.table-wrap{width:100%;overflow-x:auto}table{width:100%;min-width:950px;border-collapse:collapse;margin-top:12px;font-size:13px}td,th{padding:9px 7px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}th{background:var(--bg2)}td:first-child,th:first-child{text-align:left}.ok{color:var(--ok);font-weight:700}.no{color:var(--no);font-weight:700}pre{background:var(--bg2);padding:13px;border-radius:10px;overflow:auto;font-size:12px;line-height:1.55;max-height:550px;white-space:pre-wrap;overflow-wrap:anywhere}.tag{display:inline-block;background:var(--bg2);border:1px solid var(--line);padding:3px 8px;border-radius:7px;font-size:12px;margin:2px}@media(min-width:650px){.stats{grid-template-columns:repeat(4,1fr)}}@media(max-width:480px){main{padding:13px}}
-</style></head><body><main>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>보행자 신호 API 통합 진단</title>
+        <style>
+            :root {
+                --bg: #fff;
+                --bg2: #f3f4f6;
+                --tx: #14171a;
+                --mu: #6b7280;
+                --ok: #16a34a;
+                --no: #dc2626;
+                --ac: #2563eb;
+                --line: #e5e7eb
+            }
 
-<h1 style="margin-top:28px">① RTI API 보행자 신호 진단</h1>
-<div class="mu">기존 /api/rti 프록시를 이용해 지역별 교차로·신호정보, Pdsg 상태와 잔여시간 필드를 검사합니다.</div>
-<button id="rti-run">RTI 진단 시작</button><div class="status" id="rti-st">진단 준비 완료</div><div class="progress"><div id="rti-bar"></div></div>
-<div class="stats">
-<div class="stat"><div class="stat-title">검사 완료</div><strong id="rti-checked">0 / 7</strong></div>
-<div class="stat"><div class="stat-title">전체 신호 레코드</div><strong id="rti-records">0</strong></div>
-<div class="stat"><div class="stat-title">보행 상태 필드</div><strong id="rti-states">0</strong></div>
-<div class="stat"><div class="stat-title">보행 잔여시간</div><strong id="rti-times">0</strong></div>
-<div class="stat"><div class="stat-title">API 호출 횟수</div><strong id="rti-calls">0</strong></div>
-<div class="stat"><div class="stat-title">보행자 녹색</div><strong id="rti-greens">0</strong></div>
-<div class="stat"><div class="stat-title">보행자 정지</div><strong id="rti-reds">0</strong></div>
-<div class="stat"><div class="stat-title">오류 지역</div><strong id="rti-errors">0</strong></div></div>
-<h2>RTI 지역별 결과</h2><div class="table-wrap"><table id="rti-tb"><thead><tr><th>지역</th><th>코드</th><th>교차로</th><th>전체 신호</th><th>수집</th><th>페이지</th><th>보행 상태</th><th>잔여시간</th><th>기타 신호</th><th>결과</th></tr></thead><tbody></tbody></table></div>
-<h2>RTI 요약 / 샘플</h2><div class="box" id="rti-summary">검사 전</div><div id="rti-samples"></div>
-<script>
-(()=>{
-'use strict';
-const END='/api/rti', PAGE_SIZE=100, MAX_PAGES=50, DELAY=120;
-const DIRS=['nt','et','st','wt','ne','se','sw','nw'];
-const OTHER=['Bssg','Bcsg','Ltsg','Stsg','Utsg'];
-const TARGETS=[
-{name:'전체 조회(코드 없음)',code:'',scan:false},{name:'서울특별시',code:'1100000000',scan:false},{name:'울산광역시',code:'3100000000',scan:false},
-{name:'충청북도',code:'4300000000',scan:true},{name:'청주시',code:'4311000000',scan:true},{name:'청주시 흥덕구',code:'4311300000',scan:true},{name:'비하동',code:'4311313800',scan:true}];
-const $=id=>document.getElementById(id), sleep=ms=>new Promise(r=>setTimeout(r,ms));let calls=0;
-async function api(ep,code,page=1,rows=PAGE_SIZE){try{let q=new URLSearchParams({ep,pageNo:String(page),numOfRows:String(rows)});if(code)q.set('stdgCd',code);calls++;$('rti-calls').textContent=calls;let res=await fetch(`${END}?${q}`),raw=await res.text(),json;try{json=JSON.parse(raw)}catch{return{ok:false,error:'JSON 파싱 오류',raw}}if(!res.ok)return{ok:false,error:`HTTP ${res.status}`,json};if(json.error)return{ok:false,error:String(json.error),json};let codeR=json.header?.resultCode;if(codeR&&codeR!=='K0')return{ok:false,error:`API ${codeR}: ${json.header?.resultMsg||''}`,json};let b=json.body;if(!b)return{ok:false,error:'body 없음',json};let rawItems=b.items?.item||[],items=Array.isArray(rawItems)?rawItems:(rawItems?[rawItems]:[]);return{ok:true,json,items,total:Number(b.totalCount||0),size:Number(b.numOfRows||rows)}}catch(e){return{ok:false,error:e.message}}}
-function analyze(records){let states=0,times=0,green=0,red=0,other=0,found=[];for(let r of records){let x=r.item;for(let d of DIRS){let st=String(x[`${d}PdsgSttsNm`]||'').trim(),tm=String(x[`${d}PdsgRmndCs`]||'').trim();if(st){states++;if(st==='protected-Movement-Allowed')green++;if(st==='stop-And-Remain')red++;found.push({page:r.page,region:x.lclgvNm,crsrdId:x.crsrdId,direction:d,state:st,remaining:tm})}if(tm)times++;for(let t of OTHER){if(String(x[`${d}${t}SttsNm`]||'').trim())other++;if(String(x[`${d}${t}RmndCs`]||'').trim())other++}}}return{states,times,green,red,other,found}}
-async function scan(t){let first=await api('tl_drct_info',t.code,1,PAGE_SIZE);let map=await api('crsrd_map_info',t.code,1,20);if(!first.ok)return{...t,signal:first,map,records:[],total:0,pages:0,error:first.error};let records=first.items.map(item=>({item,page:1})),total=first.total||records.length,pc=Math.ceil(total/(first.size||PAGE_SIZE)),pages=1,error='';if(t.scan){for(let p=2;p<=Math.min(pc,MAX_PAGES);p++){$('rti-st').textContent=`${t.name}: ${p}/${pc} 페이지`;let r=await api('tl_drct_info',t.code,p,PAGE_SIZE);if(!r.ok){error=`${p}페이지: ${r.error}`;break}if(!r.items.length){error=`${p}페이지 빈 결과`;break}records.push(...r.items.map(item=>({item,page:p})));pages++;await sleep(DELAY)}if(pc>MAX_PAGES)error=`최대 ${MAX_PAGES}페이지까지만 수집`}return{...t,signal:first,map,records,total,pages,error,analysis:analyze(records)}}
-function render(rs){let tb=$('rti-tb').tBodies[0];tb.innerHTML='';for(let r of rs){let a=r.analysis||{},tr=document.createElement('tr');tr.innerHTML=`<td>${r.name}</td><td>${r.code||'(없음)'}</td><td>${r.map?.ok?r.map.total:'오류'}</td><td>${r.total}</td><td>${r.records.length}</td><td>${r.pages}</td><td>${a.states||0}</td><td>${a.times||0}</td><td>${a.other||0}</td><td>${r.signal?.ok?(r.error?'부분':'정상'):'오류'}</td>`;tb.appendChild(tr)}let all=rs.flatMap(r=>r.records),a=analyze(all);$('rti-checked').textContent=`${rs.length} / ${TARGETS.length}`;$('rti-records').textContent=all.length.toLocaleString();$('rti-states').textContent=a.states.toLocaleString();$('rti-times').textContent=a.times.toLocaleString();$('rti-greens').textContent=a.green.toLocaleString();$('rti-reds').textContent=a.red.toLocaleString();$('rti-errors').textContent=rs.filter(r=>!r.signal?.ok||!r.map?.ok||r.error).length;$('rti-summary').innerHTML='<pre>'+JSON.stringify(rs.map(r=>({region:r.name,code:r.code,total:r.total,received:r.records.length,pages:r.pages,intersections:r.map?.total,mapError:r.map?.error,signalError:r.signal?.error,scanError:r.error})),null,2)+'</pre>';$('rti-samples').innerHTML='<h3>보행자 상태가 있는 샘플 (최대 30개)</h3><pre>'+JSON.stringify(a.found.slice(0,30),null,2)+'</pre>'}
-$('rti-run').addEventListener('click',async()=>{let b=$('rti-run');b.disabled=true;calls=0;$('rti-calls').textContent='0';$('rti-bar').style.width='0%';$('rti-tb').tBodies[0].innerHTML='';let rs=[];try{for(let i=0;i<TARGETS.length;i++){let t=TARGETS[i];$('rti-st').textContent=`${t.name} 검사 (${i+1}/${TARGETS.length})`;let r=await scan(t);rs.push(r);render(rs);$('rti-bar').style.width=`${(i+1)/TARGETS.length*100}%`;await sleep(DELAY)}$('rti-st').textContent=`RTI 진단 완료: ${rs.filter(r=>r.signal?.ok).length}/${rs.length} 지역 신호 API 정상 · ${calls}회 호출`}catch(e){$('rti-st').textContent='오류: '+e.message}finally{b.disabled=false}});
-})();
-</script>
+            @media(prefers-color-scheme: dark) {
+                :root {
+                    --bg:#1b1e24;
+                    --bg2: #272b34;
+                    --tx: #eceef1;
+                    --mu: #9aa1ad;
+                    --ok: #22c55e;
+                    --no: #f87171;
+                    --ac: #60a5fa;
+                    --line: #3b414c
+                }
+            }
 
-<h1>② 전국신호등표준데이터 진단</h1><div class="mu">정적 표준데이터 API 응답, 지역별 레코드 수, 신호등 관리번호·좌표·신호 설정 및 보행 관련 설치 플래그를 검사합니다. 실시간 신호 상태 진단용 API가 아닙니다.</div>
-<button id="run">진단 시작</button><div class="status" id="st">진단 시작 준비 완료</div><div class="progress"><div id="bar"></div></div>
-<div class="stats"><div class="stat"><div class="stat-title">지역 검사 완료</div><strong id="checked">0 / 5</strong></div><div class="stat"><div class="stat-title">총 레코드</div><strong id="records">0</strong></div><div class="stat"><div class="stat-title">좌표 보유</div><strong id="coords">0</strong></div><div class="stat"><div class="stat-title">관리번호 보유</div><strong id="ids">0</strong></div><div class="stat"><div class="stat-title">보행자 신호기 플래그</div><strong id="ped">0</strong></div><div class="stat"><div class="stat-title">잔여시간 표시기 플래그</div><strong id="countdown">0</strong></div><div class="stat"><div class="stat-title">API 호출 횟수</div><strong id="calls">0</strong></div><div class="stat"><div class="stat-title">오류 지역</div><strong id="errors">0</strong></div></div>
-<h2>1. 지역별 진단 결과</h2><div class="table-wrap"><table id="tb"><thead><tr><th>지역</th><th>조회건수</th><th>좌표 보유</th><th>관리번호</th><th>신호순서</th><th>신호시간</th><th>보행 신호기</th><th>잔여 표시기</th><th>페이지</th><th>결과</th></tr></thead><tbody></tbody></table></div>
-<h2>2. 요약</h2><div class="box" id="summary">아직 검사하지 않았습니다.</div><h2>3. 샘플 데이터</h2><div class="box" id="sample">샘플 없음</div><div id="sampleRaw"></div>
-<script>
-'use strict';
-const ENDPOINT='/.netlify/functions/traffic-standard';const ROWS=1000;const MAX_PAGES=20;const TARGETS=[
-{name:'전체(지역 필터 없음)',params:{},scan:true},
-{name:'충청북도',params:{ctprvnNm:'충청북도'},scan:true},
-{name:'청주시',params:{ctprvnNm:'충청북도',signguNm:'청주시'},scan:true},
-{name:'청주시 흥덕구',params:{ctprvnNm:'충청북도',signguNm:'청주시',rdnmadr:'흥덕구'},scan:true},
-{name:'비하동(주소 필터)',params:{ctprvnNm:'충청북도',signguNm:'청주시',rdnmadr:'비하동'},scan:true}
-];
-const $=id=>document.getElementById(id);const sleep=ms=>new Promise(r=>setTimeout(r,ms));let calls=0;
-function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function getItems(json){let it=json?.response?.body?.items?.item??json?.body?.items?.item??json?.items?.item??json?.data?.items??json?.data??[];return Array.isArray(it)?it:(it?[it]:[])}
-function findTotal(json){return Number(json?.response?.body?.totalCount??json?.body?.totalCount??json?.totalCount??0)}
-function field(item,...keys){for(const k of keys){const v=item?.[k];if(v!==undefined&&v!==null&&String(v).trim()!=='')return v}return ''}
-async function fetchPage(params,page){try{const q=new URLSearchParams({...params,pageNo:String(page),numOfRows:String(ROWS),type:'json'});calls++;$('calls').textContent=calls;const res=await fetch(`${ENDPOINT}?${q}`);const raw=await res.text();let json;try{json=JSON.parse(raw)}catch{return{ok:false,error:'JSON 파싱 오류',raw}}if(!res.ok)return{ok:false,error:`HTTP ${res.status}`,json};const code=json?.response?.header?.resultCode??json?.header?.resultCode;const msg=json?.response?.header?.resultMsg??json?.header?.resultMsg;if(code && !['00','0','200','NORMAL_SERVICE'].includes(String(code)))return{ok:false,error:`API 오류 ${code} ${msg||''}`,json};return{ok:true,json,items:getItems(json),total:findTotal(json)}}catch(e){return{ok:false,error:e.message}}}
-function analyze(items){const count=(pred)=>items.filter(pred).length;return{records:items.length,coords:count(x=>field(x,'latitude','lat')&&field(x,'longitude','lotitude','lon','lng')),ids:count(x=>field(x,'tfclghtManageNo','trafficLightManageNo','signlManageNo')),order:count(x=>field(x,'sgnaspOrdr','signalOrder')),time:count(x=>field(x,'sgnaspTime','signalTime')),ped:count(x=>String(field(x,'fnctngSgngnrYn','pedestrianSignalYn')).trim()),countdown:count(x=>String(field(x,'remndrIdctYn','remainingIndicatorYn')).trim()),items}}
-async function inspect(target){let first=await fetchPage(target.params,1);if(!first.ok)return{...target,ok:false,error:first.error,items:[],total:0,pages:0};let items=[...first.items],total=Math.max(first.total,items.length),pages=1;const pageCount=Math.ceil(total/ROWS);let error='';const last=Math.min(pageCount,MAX_PAGES);for(let p=2;p<=last;p++){ $('st').textContent=`${target.name}: ${p}/${pageCount} 페이지 수집 중`;const r=await fetchPage(target.params,p);if(!r.ok){error=`${p}페이지 오류: ${r.error}`;break}items.push(...r.items);pages++;await sleep(100)}if(pageCount>MAX_PAGES)error=`최대 ${MAX_PAGES}페이지까지만 수집함`;return{...target,ok:true,total,items,pages,error,analysis:analyze(items)}}
-function render(results){const body=$('tb').tBodies[0];body.innerHTML='';for(const r of results){let a=r.analysis||{};const tr=document.createElement('tr');tr.innerHTML=`<td>${esc(r.name)}</td><td>${r.ok?r.total:'오류'}</td><td>${r.ok?a.coords:0}</td><td>${r.ok?a.ids:0}</td><td>${r.ok?a.order:0}</td><td>${r.ok?a.time:0}</td><td>${r.ok?a.ped:0}</td><td>${r.ok?a.countdown:0}</td><td>${r.ok?r.pages:0}</td><td>${r.ok?(r.error?'<span class="no">부분 조회</span>':'<span class="ok">정상</span>'):'<span class="no">오류</span>'}</td>`;body.appendChild(tr)}let all=results.filter(r=>r.ok);let merged=all.flatMap(r=>r.items);let a=analyze(merged);$('checked').textContent=`${results.length} / ${TARGETS.length}`;$('records').textContent=merged.length.toLocaleString();$('coords').textContent=a.coords.toLocaleString();$('ids').textContent=a.ids.toLocaleString();$('ped').textContent=a.ped.toLocaleString();$('countdown').textContent=a.countdown.toLocaleString();$('errors').textContent=results.filter(r=>!r.ok||r.error).length.toLocaleString();$('summary').innerHTML=`<pre>${esc(JSON.stringify(results.map(r=>({region:r.name,success:r.ok,total:r.total??0,received:r.items?.length??0,pages:r.pages,error:r.error??null})),null,2))}</pre>`;let sample=merged.slice(0,8);$('sample').innerHTML=`전체 수집 결과에서 앞 ${sample.length}개 레코드. 좌표/신호 설정은 제공된 원본 필드 그대로 확인합니다.`;$('sampleRaw').innerHTML='<pre>'+esc(JSON.stringify(sample,null,2))+'</pre>'}
-$('run').addEventListener('click',async()=>{let btn=$('run');btn.disabled=true;calls=0;$('calls').textContent='0';$('bar').style.width='0%';$('tb').tBodies[0].innerHTML='';$('summary').textContent='검사 진행 중';$('sample').textContent='검사 진행 중';$('sampleRaw').innerHTML='';let results=[];try{for(let i=0;i<TARGETS.length;i++){let t=TARGETS[i];$('st').textContent=`${t.name} 조회 (${i+1}/${TARGETS.length})`;let r=await inspect(t);results.push(r);render(results);$('bar').style.width=`${(i+1)/TARGETS.length*100}%`;await sleep(150)}$('st').textContent=`진단 완료: ${results.filter(r=>r.ok).length}/${results.length} 지역 성공 · ${calls}회 호출. 표준데이터는 실시간 신호 상태를 제공하지 않습니다.`}catch(e){$('st').textContent='진단 중 예외: '+e.message}finally{btn.disabled=false}});
-</script></main></body></html>
+            * {
+                box-sizing: border-box
+            }
+
+            body {
+                margin: 0;
+                background: var(--bg);
+                color: var(--tx);
+                font: 15px/1.5 system-ui,-apple-system,"Noto Sans KR",sans-serif
+            }
+
+            main {
+                max-width: 1000px;
+                margin: auto;
+                padding: 18px
+            }
+
+            h1 {
+                font-size: 21px;
+                margin: 0 0 6px
+            }
+
+            h2 {
+                font-size: 17px;
+                margin: 24px 0 9px
+            }
+
+            .mu,.small {
+                color: var(--mu);
+                font-size: 13px
+            }
+
+            .small {
+                overflow-wrap: anywhere
+            }
+
+            button {
+                padding: 12px 18px;
+                border: 0;
+                border-radius: 12px;
+                background: var(--ac);
+                color: white;
+                font-weight: 700;
+                font-size: 15px;
+                cursor: pointer;
+                margin-top: 14px
+            }
+
+            button:disabled {
+                opacity: .5;
+                cursor: not-allowed
+            }
+
+            .status,.box,.stat {
+                background: var(--bg2);
+                border-radius: 10px;
+                padding: 12px;
+                margin-top: 12px
+            }
+
+            .status {
+                min-height: 42px;
+                font-size: 13px
+            }
+
+            .progress {
+                height: 7px;
+                margin-top: 10px;
+                background: var(--bg2);
+                border-radius: 10px;
+                overflow: hidden
+            }
+
+            .progress div {
+                width: 0;
+                height: 100%;
+                background: var(--ac);
+                transition: width .2s
+            }
+
+            .stats {
+                display: grid;
+                grid-template-columns: repeat(2,1fr);
+                gap: 9px;
+                margin-top: 13px
+            }
+
+            .stat-title {
+                font-size: 12px;
+                color: var(--mu)
+            }
+
+            .stat strong {
+                display: block;
+                font-size: 21px;
+                margin-top: 4px
+            }
+
+            .table-wrap {
+                width: 100%;
+                overflow-x: auto
+            }
+
+            table {
+                width: 100%;
+                min-width: 950px;
+                border-collapse: collapse;
+                margin-top: 12px;
+                font-size: 13px
+            }
+
+            td,th {
+                padding: 9px 7px;
+                border-bottom: 1px solid var(--line);
+                text-align: center;
+                white-space: nowrap
+            }
+
+            th {
+                background: var(--bg2)
+            }
+
+            td:first-child,th:first-child {
+                text-align: left
+            }
+
+            .ok {
+                color: var(--ok);
+                font-weight: 700
+            }
+
+            .no {
+                color: var(--no);
+                font-weight: 700
+            }
+
+            pre {
+                background: var(--bg2);
+                padding: 13px;
+                border-radius: 10px;
+                overflow: auto;
+                font-size: 12px;
+                line-height: 1.55;
+                max-height: 550px;
+                white-space: pre-wrap;
+                overflow-wrap: anywhere
+            }
+
+            .tag {
+                display: inline-block;
+                background: var(--bg2);
+                border: 1px solid var(--line);
+                padding: 3px 8px;
+                border-radius: 7px;
+                font-size: 12px;
+                margin: 2px
+            }
+
+            @media(min-width: 650px) {
+                .stats {
+                    grid-template-columns:repeat(4,1fr)
+                }
+            }
+
+            @media(max-width: 480px) {
+                main {
+                    padding:13px
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <main>
+            <h1 style="margin-top:28px">① RTI API 보행자 신호 진단</h1>
+            <div class="mu">기존 /api/rti 프록시를 이용해 지역별 교차로·신호정보, Pdsg 상태와 잔여시간 필드를 검사합니다.</div>
+            <button id="rti-run">RTI 진단 시작</button>
+            <div class="status" id="rti-st">진단 준비 완료</div>
+            <div class="progress">
+                <div id="rti-bar"></div>
+            </div>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-title">검사 완료</div>
+                    <strong id="rti-checked">0 / 7</strong>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">전체 신호 레코드</div>
+                    <strong id="rti-records">0</strong>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">보행 상태 필드</div>
+                    <strong id="rti-states">0</strong>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">보행 잔여시간</div>
+                    <strong id="rti-times">0</strong>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">API 호출 횟수</div>
+                    <strong id="rti-calls">0</strong>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">보행자 녹색</div>
+                    <strong id="rti-greens">0</strong>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">보행자 정지</div>
+                    <strong id="rti-reds">0</strong>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">오류 지역</div>
+                    <strong id="rti-errors">0</strong>
+                </div>
+            </div>
+            <h2>RTI 지역별 결과</h2>
+            <div class="table-wrap">
+                <table id="rti-tb">
+                    <thead>
+                        <tr>
+                            <th>지역</th>
+                            <th>코드</th>
+                            <th>교차로</th>
+                            <th>전체 신호</th>
+                            <th>수집</th>
+                            <th>페이지</th>
+                            <th>보행 상태</th>
+                            <th>잔여시간</th>
+                            <th>기타 신호</th>
+                            <th>결과</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <h2>RTI 요약 / 샘플</h2>
+            <div class="box" id="rti-summary">검사 전</div>
+            <div id="rti-samples"></div>
+            <script>
+                ( () => {
+                    'use strict';
+                    const END = '/api/rti'
+                      , PAGE_SIZE = 100
+                      , MAX_PAGES = 50
+                      , DELAY = 120;
+                    const DIRS = ['nt', 'et', 'st', 'wt', 'ne', 'se', 'sw', 'nw'];
+                    const OTHER = ['Bssg', 'Bcsg', 'Ltsg', 'Stsg', 'Utsg'];
+                    const TARGETS = [{
+                        name: '전체 조회(코드 없음)',
+                        code: '',
+                        scan: false
+                    }, {
+                        name: '서울특별시',
+                        code: '1100000000',
+                        scan: false
+                    }, {
+                        name: '울산광역시',
+                        code: '3100000000',
+                        scan: false
+                    }, {
+                        name: '충청북도',
+                        code: '4300000000',
+                        scan: true
+                    }, {
+                        name: '청주시',
+                        code: '4311000000',
+                        scan: true
+                    }, {
+                        name: '청주시 흥덕구',
+                        code: '4311300000',
+                        scan: true
+                    }, {
+                        name: '비하동',
+                        code: '4311313800',
+                        scan: true
+                    }];
+                    const $ = id => document.getElementById(id)
+                      , sleep = ms => new Promise(r => setTimeout(r, ms));
+                    let calls = 0;
+                    async function api(ep, code, page=1, rows=PAGE_SIZE) {
+                        try {
+                            let q = new URLSearchParams({
+                                ep,
+                                pageNo: String(page),
+                                numOfRows: String(rows)
+                            });
+                            if (code)
+                                q.set('stdgCd', code);
+                            calls++;
+                            $('rti-calls').textContent = calls;
+                            let res = await fetch(`${END}?${q}`), raw = await res.text(), json;
+                            try {
+                                json = JSON.parse(raw)
+                            } catch {
+                                return {
+                                    ok: false,
+                                    error: `JSON 파싱 오류 (HTTP ${res.status}, Content-Type: ${res.headers.get('content-type') || '없음'})`,
+                                    raw: raw.slice(0, 1200),
+                                    url: `${ENDPOINT}?${q}`
+                                }
+                            }
+                            if (!res.ok)
+                                return {
+                                    ok: false,
+                                    error: `HTTP ${res.status}`,
+                                    json,
+                                    raw: raw.slice(0, 1200)
+                                };
+                            if (json.error)
+                                return {
+                                    ok: false,
+                                    error: String(json.error),
+                                    json
+                                };
+                            let codeR = json.header?.resultCode;
+                            if (codeR && codeR !== 'K0')
+                                return {
+                                    ok: false,
+                                    error: `API ${codeR}: ${json.header?.resultMsg || ''}`,
+                                    json
+                                };
+                            let b = json.body;
+                            if (!b)
+                                return {
+                                    ok: false,
+                                    error: 'body 없음',
+                                    json
+                                };
+                            let rawItems = b.items?.item || []
+                              , items = Array.isArray(rawItems) ? rawItems : (rawItems ? [rawItems] : []);
+                            return {
+                                ok: true,
+                                json,
+                                items,
+                                total: Number(b.totalCount || 0),
+                                size: Number(b.numOfRows || rows)
+                            }
+                        } catch (e) {
+                            return {
+                                ok: false,
+                                error: e.message
+                            }
+                        }
+                    }
+                    function analyze(records) {
+                        let states = 0
+                          , times = 0
+                          , green = 0
+                          , red = 0
+                          , other = 0
+                          , found = [];
+                        for (let r of records) {
+                            let x = r.item;
+                            for (let d of DIRS) {
+                                let st = String(x[`${d}PdsgSttsNm`] || '').trim()
+                                  , tm = String(x[`${d}PdsgRmndCs`] || '').trim();
+                                if (st) {
+                                    states++;
+                                    if (st === 'protected-Movement-Allowed')
+                                        green++;
+                                    if (st === 'stop-And-Remain')
+                                        red++;
+                                    found.push({
+                                        page: r.page,
+                                        region: x.lclgvNm,
+                                        crsrdId: x.crsrdId,
+                                        direction: d,
+                                        state: st,
+                                        remaining: tm
+                                    })
+                                }
+                                if (tm)
+                                    times++;
+                                for (let t of OTHER) {
+                                    if (String(x[`${d}${t}SttsNm`] || '').trim())
+                                        other++;
+                                    if (String(x[`${d}${t}RmndCs`] || '').trim())
+                                        other++
+                                }
+                            }
+                        }
+                        return {
+                            states,
+                            times,
+                            green,
+                            red,
+                            other,
+                            found
+                        }
+                    }
+                    async function scan(t) {
+                        let first = await api('tl_drct_info', t.code, 1, PAGE_SIZE);
+                        let map = await api('crsrd_map_info', t.code, 1, 20);
+                        if (!first.ok)
+                            return {
+                                ...t,
+                                signal: first,
+                                map,
+                                records: [],
+                                total: 0,
+                                pages: 0,
+                                error: first.error,
+                                raw: first.raw
+                            };
+                        let records = first.items.map(item => ({
+                            item,
+                            page: 1
+                        }))
+                          , total = first.total || records.length
+                          , pc = Math.ceil(total / (first.size || PAGE_SIZE))
+                          , pages = 1
+                          , error = '';
+                        if (t.scan) {
+                            for (let p = 2; p <= Math.min(pc, MAX_PAGES); p++) {
+                                $('rti-st').textContent = `${t.name}: ${p}/${pc} 페이지`;
+                                let r = await api('tl_drct_info', t.code, p, PAGE_SIZE);
+                                if (!r.ok) {
+                                    error = `${p}페이지: ${r.error}`;
+                                    break
+                                }
+                                if (!r.items.length) {
+                                    error = `${p}페이지 빈 결과`;
+                                    break
+                                }
+                                records.push(...r.items.map(item => ({
+                                    item,
+                                    page: p
+                                })));
+                                pages++;
+                                await sleep(DELAY)
+                            }
+                            if (pc > MAX_PAGES)
+                                error = `최대 ${MAX_PAGES}페이지까지만 수집`
+                        }
+                        return {
+                            ...t,
+                            signal: first,
+                            map,
+                            records,
+                            total,
+                            pages,
+                            error,
+                            analysis: analyze(records)
+                        }
+                    }
+                    function render(rs) {
+                        let tb = $('rti-tb').tBodies[0];
+                        tb.innerHTML = '';
+                        for (let r of rs) {
+                            let a = r.analysis || {}
+                              , tr = document.createElement('tr');
+                            tr.innerHTML = `<td>${r.name}</td><td>${r.code || '(없음)'}</td><td>${r.map?.ok ? r.map.total : '오류'}</td><td>${r.total}</td><td>${r.records.length}</td><td>${r.pages}</td><td>${a.states || 0}</td><td>${a.times || 0}</td><td>${a.other || 0}</td><td>${r.signal?.ok ? (r.error ? '부분' : '정상') : '오류'}</td>`;
+                            tb.appendChild(tr)
+                        }
+                        let all = rs.flatMap(r => r.records)
+                          , a = analyze(all);
+                        $('rti-checked').textContent = `${rs.length} / ${TARGETS.length}`;
+                        $('rti-records').textContent = all.length.toLocaleString();
+                        $('rti-states').textContent = a.states.toLocaleString();
+                        $('rti-times').textContent = a.times.toLocaleString();
+                        $('rti-greens').textContent = a.green.toLocaleString();
+                        $('rti-reds').textContent = a.red.toLocaleString();
+                        $('rti-errors').textContent = rs.filter(r => !r.signal?.ok || !r.map?.ok || r.error).length;
+                        $('rti-summary').innerHTML = '<pre>' + JSON.stringify(rs.map(r => ({
+                            region: r.name,
+                            code: r.code,
+                            total: r.total,
+                            received: r.records.length,
+                            pages: r.pages,
+                            intersections: r.map?.total,
+                            mapError: r.map?.error,
+                            signalError: r.signal?.error,
+                            scanError: r.error,
+                            rawPreview: r.signal?.raw || r.map?.raw || null
+                        })), null, 2) + '</pre>';
+                        $('rti-samples').innerHTML = '<h3>보행자 상태가 있는 샘플 (최대 30개)</h3><pre>' + JSON.stringify(a.found.slice(0, 30), null, 2) + '</pre>'
+                    }
+                    $('rti-run').addEventListener('click', async () => {
+                        let b = $('rti-run');
+                        b.disabled = true;
+                        calls = 0;
+                        $('rti-calls').textContent = '0';
+                        $('rti-bar').style.width = '0%';
+                        $('rti-tb').tBodies[0].innerHTML = '';
+                        let rs = [];
+                        try {
+                            for (let i = 0; i < TARGETS.length; i++) {
+                                let t = TARGETS[i];
+                                $('rti-st').textContent = `${t.name} 검사 (${i + 1}/${TARGETS.length})`;
+                                let r = await scan(t);
+                                rs.push(r);
+                                render(rs);
+                                $('rti-bar').style.width = `${(i + 1) / TARGETS.length * 100}%`;
+                                await sleep(DELAY)
+                            }
+                            $('rti-st').textContent = `RTI 진단 완료: ${rs.filter(r => r.signal?.ok).length}/${rs.length} 지역 신호 API 정상 · ${calls}회 호출`
+                        } catch (e) {
+                            $('rti-st').textContent = '오류: ' + e.message
+                        } finally {
+                            b.disabled = false
+                        }
+                    }
+                    );
+                }
+                )();
+            </script>
+            <h1>② 전국신호등표준데이터 진단</h1>
+            <div class="mu">정적 표준데이터 API 응답, 지역별 레코드 수, 신호등 관리번호·좌표·신호 설정 및 보행 관련 설치 플래그를 검사합니다. 실시간 신호 상태 진단용 API가 아닙니다.</div>
+            <button id="run">진단 시작</button>
+            <div class="status" id="st">진단 시작 준비 완료</div>
+            <div class="progress">
+                <div id="bar"></div>
+            </div>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-title">지역 검사 완료</div>
+                    <strong id="checked">0 / 5</strong>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">총 레코드</div>
+                    <strong id="records">0</strong>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">좌표 보유</div>
+                    <strong id="coords">0</strong>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">관리번호 보유</div>
+                    <strong id="ids">0</strong>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">보행자 신호기 플래그</div>
+                    <strong id="ped">0</strong>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">잔여시간 표시기 플래그</div>
+                    <strong id="countdown">0</strong>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">API 호출 횟수</div>
+                    <strong id="calls">0</strong>
+                </div>
+                <div class="stat">
+                    <div class="stat-title">오류 지역</div>
+                    <strong id="errors">0</strong>
+                </div>
+            </div>
+            <h2>1. 지역별 진단 결과</h2>
+            <div class="table-wrap">
+                <table id="tb">
+                    <thead>
+                        <tr>
+                            <th>지역</th>
+                            <th>조회건수</th>
+                            <th>좌표 보유</th>
+                            <th>관리번호</th>
+                            <th>신호순서</th>
+                            <th>신호시간</th>
+                            <th>보행 신호기</th>
+                            <th>잔여 표시기</th>
+                            <th>페이지</th>
+                            <th>결과</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <h2>2. 요약</h2>
+            <div class="box" id="summary">아직 검사하지 않았습니다.</div>
+            <h2>3. 샘플 데이터</h2>
+            <div class="box" id="sample">샘플 없음</div>
+            <div id="sampleRaw"></div>
+            <script>
+                'use strict';
+                const ENDPOINT = '/.netlify/functions/traffic-standard';
+                const ROWS = 1000;
+                const MAX_PAGES = 20;
+                const TARGETS = [{
+                    name: '전체(지역 필터 없음)',
+                    params: {},
+                    scan: true
+                }, {
+                    name: '충청북도',
+                    params: {
+                        ctprvnNm: '충청북도'
+                    },
+                    scan: true
+                }, {
+                    name: '청주시',
+                    params: {
+                        ctprvnNm: '충청북도',
+                        signguNm: '청주시'
+                    },
+                    scan: true
+                }, {
+                    name: '청주시 흥덕구',
+                    params: {
+                        ctprvnNm: '충청북도',
+                        signguNm: '청주시',
+                        rdnmadr: '흥덕구'
+                    },
+                    scan: true
+                }, {
+                    name: '비하동(주소 필터)',
+                    params: {
+                        ctprvnNm: '충청북도',
+                        signguNm: '청주시',
+                        rdnmadr: '비하동'
+                    },
+                    scan: true
+                }];
+                const $ = id => document.getElementById(id);
+                const sleep = ms => new Promise(r => setTimeout(r, ms));
+                let calls = 0;
+                function esc(s) {
+                    return String(s ?? '').replace(/[&<>"']/g, c => ({
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '"': '&quot;',
+                        "'": '&#39;'
+                    }[c]))
+                }
+                function getItems(json) {
+                    let it = json?.response?.body?.items?.item ?? json?.body?.items?.item ?? json?.items?.item ?? json?.data?.items ?? json?.data ?? [];
+                    return Array.isArray(it) ? it : (it ? [it] : [])
+                }
+                function findTotal(json) {
+                    return Number(json?.response?.body?.totalCount ?? json?.body?.totalCount ?? json?.totalCount ?? 0)
+                }
+                function field(item, ...keys) {
+                    for (const k of keys) {
+                        const v = item?.[k];
+                        if (v !== undefined && v !== null && String(v).trim() !== '')
+                            return v
+                    }
+                    return ''
+                }
+                async function fetchPage(params, page) {
+                    try {
+                        const q = new URLSearchParams({
+                            ...params,
+                            pageNo: String(page),
+                            numOfRows: String(ROWS),
+                            type: 'json'
+                        });
+                        calls++;
+                        $('calls').textContent = calls;
+                        const res = await fetch(`${ENDPOINT}?${q}`);
+                        const raw = await res.text();
+                        let json;
+                        try {
+                            json = JSON.parse(raw)
+                        } catch {
+                            return {
+                                ok: false,
+                                error: `JSON 파싱 오류 (HTTP ${res.status}, Content-Type: ${res.headers.get('content-type') || '없음'})`,
+                                raw: raw.slice(0, 1200),
+                                url: `${ENDPOINT}?${q}`
+                            }
+                        }
+                        if (!res.ok)
+                            return {
+                                ok: false,
+                                error: `HTTP ${res.status}`,
+                                json,
+                                raw: raw.slice(0, 1200)
+                            };
+                        const code = json?.response?.header?.resultCode ?? json?.header?.resultCode;
+                        const msg = json?.response?.header?.resultMsg ?? json?.header?.resultMsg;
+                        if (code && !['00', '0', '200', 'NORMAL_SERVICE'].includes(String(code)))
+                            return {
+                                ok: false,
+                                error: `API 오류 ${code} ${msg || ''}`,
+                                json
+                            };
+                        return {
+                            ok: true,
+                            json,
+                            items: getItems(json),
+                            total: findTotal(json)
+                        }
+                    } catch (e) {
+                        return {
+                            ok: false,
+                            error: e.message
+                        }
+                    }
+                }
+                function analyze(items) {
+                    const count = (pred) => items.filter(pred).length;
+                    return {
+                        records: items.length,
+                        coords: count(x => field(x, 'latitude', 'lat') && field(x, 'longitude', 'lotitude', 'lon', 'lng')),
+                        ids: count(x => field(x, 'tfclghtManageNo', 'trafficLightManageNo', 'signlManageNo')),
+                        order: count(x => field(x, 'sgnaspOrdr', 'signalOrder')),
+                        time: count(x => field(x, 'sgnaspTime', 'signalTime')),
+                        ped: count(x => String(field(x, 'fnctngSgngnrYn', 'pedestrianSignalYn')).trim()),
+                        countdown: count(x => String(field(x, 'remndrIdctYn', 'remainingIndicatorYn')).trim()),
+                        items
+                    }
+                }
+                async function inspect(target) {
+                    let first = await fetchPage(target.params, 1);
+                    if (!first.ok)
+                        return {
+                            ...target,
+                            ok: false,
+                            error: first.error,
+                            raw: first.raw,
+                            url: first.url,
+                            items: [],
+                            total: 0,
+                            pages: 0
+                        };
+                    let items = [...first.items]
+                      , total = Math.max(first.total, items.length)
+                      , pages = 1;
+                    const pageCount = Math.ceil(total / ROWS);
+                    let error = '';
+                    const last = Math.min(pageCount, MAX_PAGES);
+                    for (let p = 2; p <= last; p++) {
+                        $('st').textContent = `${target.name}: ${p}/${pageCount} 페이지 수집 중`;
+                        const r = await fetchPage(target.params, p);
+                        if (!r.ok) {
+                            error = `${p}페이지 오류: ${r.error}`;
+                            break
+                        }
+                        items.push(...r.items);
+                        pages++;
+                        await sleep(100)
+                    }
+                    if (pageCount > MAX_PAGES)
+                        error = `최대 ${MAX_PAGES}페이지까지만 수집함`;
+                    return {
+                        ...target,
+                        ok: true,
+                        total,
+                        items,
+                        pages,
+                        error,
+                        analysis: analyze(items)
+                    }
+                }
+                function render(results) {
+                    const body = $('tb').tBodies[0];
+                    body.innerHTML = '';
+                    for (const r of results) {
+                        let a = r.analysis || {};
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `<td>${esc(r.name)}</td><td>${r.ok ? r.total : '오류'}</td><td>${r.ok ? a.coords : 0}</td><td>${r.ok ? a.ids : 0}</td><td>${r.ok ? a.order : 0}</td><td>${r.ok ? a.time : 0}</td><td>${r.ok ? a.ped : 0}</td><td>${r.ok ? a.countdown : 0}</td><td>${r.ok ? r.pages : 0}</td><td>${r.ok ? (r.error ? '<span class="no">부분 조회</span>' : '<span class="ok">정상</span>') : '<span class="no">오류</span>'}</td>`;
+                        body.appendChild(tr)
+                    }
+                    let all = results.filter(r => r.ok);
+                    let merged = all.flatMap(r => r.items);
+                    let a = analyze(merged);
+                    $('checked').textContent = `${results.length} / ${TARGETS.length}`;
+                    $('records').textContent = merged.length.toLocaleString();
+                    $('coords').textContent = a.coords.toLocaleString();
+                    $('ids').textContent = a.ids.toLocaleString();
+                    $('ped').textContent = a.ped.toLocaleString();
+                    $('countdown').textContent = a.countdown.toLocaleString();
+                    $('errors').textContent = results.filter(r => !r.ok || r.error).length.toLocaleString();
+                    $('summary').innerHTML = `<pre>${esc(JSON.stringify(results.map(r => ({
+                        region: r.name,
+                        success: r.ok,
+                        total: r.total ?? 0,
+                        received: r.items?.length ?? 0,
+                        pages: r.pages,
+                        error: r.error ?? null,
+                        url: r.url ?? null,
+                        rawPreview: r.raw ?? null
+                    })), null, 2))}</pre>`;
+                    let sample = merged.slice(0, 8);
+                    $('sample').innerHTML = `전체 수집 결과에서 앞 ${sample.length}개 레코드. 좌표/신호 설정은 제공된 원본 필드 그대로 확인합니다.`;
+                    $('sampleRaw').innerHTML = '<pre>' + esc(JSON.stringify(sample, null, 2)) + '</pre>'
+                }
+                $('run').addEventListener('click', async () => {
+                    let btn = $('run');
+                    btn.disabled = true;
+                    calls = 0;
+                    $('calls').textContent = '0';
+                    $('bar').style.width = '0%';
+                    $('tb').tBodies[0].innerHTML = '';
+                    $('summary').textContent = '검사 진행 중';
+                    $('sample').textContent = '검사 진행 중';
+                    $('sampleRaw').innerHTML = '';
+                    let results = [];
+                    try {
+                        for (let i = 0; i < TARGETS.length; i++) {
+                            let t = TARGETS[i];
+                            $('st').textContent = `${t.name} 조회 (${i + 1}/${TARGETS.length})`;
+                            let r = await inspect(t);
+                            results.push(r);
+                            render(results);
+                            $('bar').style.width = `${(i + 1) / TARGETS.length * 100}%`;
+                            await sleep(150)
+                        }
+                        $('st').textContent = `진단 완료: ${results.filter(r => r.ok).length}/${results.length} 지역 성공 · ${calls}회 호출. 표준데이터는 실시간 신호 상태를 제공하지 않습니다.`
+                    } catch (e) {
+                        $('st').textContent = '진단 중 예외: ' + e.message
+                    } finally {
+                        btn.disabled = false
+                    }
+                }
+                );
+            </script>
+        </main>
+    </body>
+</html>
